@@ -1,29 +1,10 @@
 // src/services/optimizer/utils/solutionGenerators.js
 
+import { warningTracker } from './warningTracker.js';
+
 /**
  * Generators for initial team solutions using different strategies
  */
-
-// Track warnings to avoid spam
-const warningTracker = {
-    counts: new Map(),
-    lastReset: Date.now(),
-    resetInterval: 5000, // Reset every 5 seconds
-
-    shouldWarn(key) {
-        const now = Date.now();
-        if (now - this.lastReset > this.resetInterval) {
-            this.counts.clear();
-            this.lastReset = now;
-        }
-
-        const count = this.counts.get(key) || 0;
-        this.counts.set(key, count + 1);
-
-        // Only warn once per position per reset interval
-        return count === 0;
-    }
-};
 
 /**
  * Calculate position scarcity - how tight each position's player supply is
