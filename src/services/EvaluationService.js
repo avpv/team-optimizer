@@ -7,12 +7,12 @@ import { calculateSimpleTeamStrength } from '../utils/evaluationUtils.js';
 
 class EvaluationService {
     /**
-     * @param {Object} sportConfig - Sport-specific configuration
+     * @param {Object} activityConfig - Activity-specific configuration
      * @param {Object} adaptiveParameters - Adaptive parameters for evaluation
      * @param {Function} customEvaluationFn - Optional custom evaluation function
      */
-    constructor(sportConfig, adaptiveParameters = {}, customEvaluationFn = null) {
-        this.sportConfig = sportConfig;
+    constructor(activityConfig, adaptiveParameters = {}, customEvaluationFn = null) {
+        this.activityConfig = activityConfig;
         this.adaptiveParameters = {
             varianceWeight: 0.5,
             positionBalanceWeight: 0.3,
@@ -41,7 +41,7 @@ class EvaluationService {
         // Calculate team strengths using weighted ratings
         const teamStrengths = teams.map(team => {
             if (!Array.isArray(team)) return 0;
-            return calculateSimpleTeamStrength(team, this.sportConfig.positionWeights);
+            return calculateSimpleTeamStrength(team, this.activityConfig.positionWeights);
         });
 
         // Check for invalid strengths
@@ -74,8 +74,8 @@ class EvaluationService {
     calculatePositionImbalance(teams) {
         let totalImbalance = 0;
 
-        Object.keys(this.sportConfig.positions).forEach(position => {
-            const positionWeight = this.sportConfig.positionWeights[position] || 1.0;
+        Object.keys(this.activityConfig.positions).forEach(position => {
+            const positionWeight = this.activityConfig.positionWeights[position] || 1.0;
 
             // Calculate strength for this position in each team
             const positionStrengths = teams.map(team =>
@@ -99,7 +99,7 @@ class EvaluationService {
      * @returns {number} Team strength
      */
     calculateTeamStrength(team) {
-        return calculateSimpleTeamStrength(team, this.sportConfig.positionWeights);
+        return calculateSimpleTeamStrength(team, this.activityConfig.positionWeights);
     }
 
     /**

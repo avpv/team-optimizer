@@ -33,7 +33,7 @@ export function getPlayerRating(player, position) {
 /**
  * Calculate team strength based on player ratings with optional position weights
  * @param {Array} players - Team players
- * @param {Object} positionWeights - Position weights from sport config (optional)
+ * @param {Object} positionWeights - Position weights from activity config (optional)
  * @param {boolean} usePositionWeights - Whether to apply position weights (default: true)
  * @returns {Object} Team strength statistics
  */
@@ -81,7 +81,7 @@ export function calculateTeamStrength(players, positionWeights = {}, usePosition
  * Calculate simple weighted average team strength (for backward compatibility)
  * Returns a single number instead of detailed statistics
  * @param {Array} players - Team players
- * @param {Object} positionWeights - Position weights from sport config
+ * @param {Object} positionWeights - Position weights from activity config
  * @returns {number} Average weighted team strength
  */
 export function calculateSimpleTeamStrength(players, positionWeights = {}) {
@@ -92,7 +92,7 @@ export function calculateSimpleTeamStrength(players, positionWeights = {}) {
 /**
  * Calculate balance metrics for multiple teams
  * @param {Array} teams - Array of teams
- * @param {Object} positionWeights - Position weights from sport config
+ * @param {Object} positionWeights - Position weights from activity config
  * @returns {Object} Balance metrics
  */
 export function calculateTeamBalance(teams, positionWeights = {}) {

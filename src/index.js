@@ -1,6 +1,6 @@
 /**
  * Team Optimizer Library
- * Universal team balancing for sports
+ * Universal team balancing for any activity
  *
  * @module team-optimizer
  * @author avpv

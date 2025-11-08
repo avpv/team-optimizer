@@ -1,4 +1,4 @@
-// Volleyball sport configuration
+// Volleyball activity configuration
 
 export default {
     name: 'Volleyball',

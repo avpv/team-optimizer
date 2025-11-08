@@ -5,10 +5,10 @@
 
 class ValidationService {
     /**
-     * @param {Object} sportConfig - Sport-specific configuration
+     * @param {Object} activityConfig - Activity-specific configuration
      */
-    constructor(sportConfig) {
-        this.sportConfig = sportConfig;
+    constructor(activityConfig) {
+        this.activityConfig = activityConfig;
     }
 
     /**
@@ -35,7 +35,7 @@ class ValidationService {
                 totalNeeded += needed;
 
                 if (available < needed) {
-                    const positionName = this.sportConfig.positions?.[position] || position;
+                    const positionName = this.activityConfig.positions?.[position] || position;
                     errors.push({
                         position,
                         needed,
@@ -46,7 +46,7 @@ class ValidationService {
 
                 // Warning if barely enough players
                 if (available === needed) {
-                    const positionName = this.sportConfig.positions?.[position] || position;
+                    const positionName = this.activityConfig.positions?.[position] || position;
                     warnings.push({
                         position,
                         message: `Exactly enough ${positionName}s available (${available}), no flexibility for optimization`
@@ -81,45 +81,45 @@ class ValidationService {
     }
 
     /**
-     * Validate sport configuration structure
-     * @param {Object} sportConfig - Sport configuration to validate
+     * Validate activity configuration structure
+     * @param {Object} activityConfig - Activity configuration to validate
      * @returns {boolean} True if configuration is valid
      */
-    validateSportConfig(sportConfig) {
-        if (!sportConfig || typeof sportConfig !== 'object') {
+    validateActivityConfig(activityConfig) {
+        if (!activityConfig || typeof activityConfig !== 'object') {
             return false;
         }
 
         // Required fields
         const requiredFields = ['positions', 'positionOrder', 'defaultComposition', 'positionWeights'];
         for (const field of requiredFields) {
-            if (!sportConfig[field]) {
-                console.warn(`Sport config missing required field: ${field}`);
+            if (!activityConfig[field]) {
+                console.warn(`Activity config missing required field: ${field}`);
                 return false;
             }
         }
 
         // Validate positions object
-        if (typeof sportConfig.positions !== 'object' || Object.keys(sportConfig.positions).length === 0) {
-            console.warn('Sport config positions must be a non-empty object');
+        if (typeof activityConfig.positions !== 'object' || Object.keys(activityConfig.positions).length === 0) {
+            console.warn('Activity config positions must be a non-empty object');
             return false;
         }
 
         // Validate positionOrder array
-        if (!Array.isArray(sportConfig.positionOrder) || sportConfig.positionOrder.length === 0) {
-            console.warn('Sport config positionOrder must be a non-empty array');
+        if (!Array.isArray(activityConfig.positionOrder) || activityConfig.positionOrder.length === 0) {
+            console.warn('Activity config positionOrder must be a non-empty array');
             return false;
         }
 
         // Validate defaultComposition
-        if (typeof sportConfig.defaultComposition !== 'object') {
-            console.warn('Sport config defaultComposition must be an object');
+        if (typeof activityConfig.defaultComposition !== 'object') {
+            console.warn('Activity config defaultComposition must be an object');
             return false;
         }
 
         // Validate positionWeights
-        if (typeof sportConfig.positionWeights !== 'object') {
-            console.warn('Sport config positionWeights must be an object');
+        if (typeof activityConfig.positionWeights !== 'object') {
+            console.warn('Activity config positionWeights must be an object');
             return false;
         }
 

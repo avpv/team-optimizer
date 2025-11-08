@@ -8,10 +8,10 @@ import { sortTeamByPosition, getUnusedPlayers } from '../utils/solutionUtils.js'
 
 class SolutionOrganizer {
     /**
-     * @param {Object} sportConfig - Sport-specific configuration
+     * @param {Object} activityConfig - Activity-specific configuration
      */
-    constructor(sportConfig) {
-        this.sportConfig = sportConfig;
+    constructor(activityConfig) {
+        this.activityConfig = activityConfig;
     }
 
     /**
@@ -49,8 +49,8 @@ class SolutionOrganizer {
      */
     sortTeamsByStrength(teams) {
         return teams.sort((a, b) => {
-            const aStrength = calculateSimpleTeamStrength(a, this.sportConfig.positionWeights);
-            const bStrength = calculateSimpleTeamStrength(b, this.sportConfig.positionWeights);
+            const aStrength = calculateSimpleTeamStrength(a, this.activityConfig.positionWeights);
+            const bStrength = calculateSimpleTeamStrength(b, this.activityConfig.positionWeights);
             return bStrength - aStrength;
         });
     }
@@ -62,7 +62,7 @@ class SolutionOrganizer {
      */
     sortPlayersInTeams(teams) {
         teams.forEach(team => {
-            sortTeamByPosition(team, this.sportConfig.positionOrder);
+            sortTeamByPosition(team, this.activityConfig.positionOrder);
         });
         return teams;
     }
@@ -111,7 +111,7 @@ class SolutionOrganizer {
         const statistics = {
             playerCount: team.length,
             positions: {},
-            totalStrength: calculateSimpleTeamStrength(team, this.sportConfig.positionWeights)
+            totalStrength: calculateSimpleTeamStrength(team, this.activityConfig.positionWeights)
         };
 
         Object.keys(positionCounts).forEach(position => {
