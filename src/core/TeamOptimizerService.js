@@ -42,7 +42,8 @@ class TeamOptimizerService {
             adaptiveParameters: {
                 strongWeakSwapProbability: 0.6,
                 positionBalanceWeight: 0.3,
-                varianceWeight: 0.5
+                varianceWeight: 0.5,
+                positionWeights: sportConfig.positionWeights  // Add position weights from config
             }
         };
 
