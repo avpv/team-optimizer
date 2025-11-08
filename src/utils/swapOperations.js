@@ -34,18 +34,12 @@ export function performSwap(teams, positions) {
 /**
  * Calculate team strength based on player ratings
  * @param {Array} players - Team players
+ * @param {Object} positionWeights - Position weights from sport config
  * @param {boolean} usePositionWeights - Whether to apply position weights
  * @returns {Object} Team strength statistics
  */
-function calculateTeamStrength(players, usePositionWeights = true) {
+function calculateTeamStrength(players, positionWeights = {}, usePositionWeights = true) {
     const DEFAULT_RATING = 1500;
-    const POSITION_WEIGHTS = {
-        'S': 1.3,
-        'OPP': 1.2,
-        'OH': 1.1,
-        'MB': 1.0,
-        'L': 0.9
-    };
 
     if (!players || players.length === 0) {
         return {
@@ -69,7 +63,7 @@ function calculateTeamStrength(players, usePositionWeights = true) {
 
         // Apply position weight if enabled
         if (usePositionWeights && position) {
-            const weight = POSITION_WEIGHTS[position] || 1.0;
+            const weight = positionWeights[position] || 1.0;
             weightedRating += rating * weight;
         } else {
             weightedRating += rating;
@@ -92,9 +86,10 @@ function calculateTeamStrength(players, usePositionWeights = true) {
  * @param {Object} adaptiveParams - Adaptive parameters configuration
  */
 export function performAdaptiveSwap(teams, positions, adaptiveParams) {
+    const positionWeights = adaptiveParams.positionWeights || {};
     const teamStrengths = teams.map((team, idx) => ({
         idx,
-        strength: calculateTeamStrength(team, true).weightedRating
+        strength: calculateTeamStrength(team, positionWeights, true).weightedRating
     })).sort((a, b) => b.strength - a.strength);
     
     if (teamStrengths.length < 2) {
