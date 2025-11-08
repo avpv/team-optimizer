@@ -1,6 +1,6 @@
 // src/services/optimizer/algorithms/AntColonyOptimizer.js
 
-import IOptimizer from '../IOptimizer.js';
+import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { generateInitialSolutions } from '../utils/solutionGenerators.js';
 

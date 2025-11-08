@@ -1,6 +1,6 @@
 // src/services/optimizer/algorithms/SimulatedAnnealingOptimizer.js
 
-import IOptimizer from '../IOptimizer.js';
+import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
 
