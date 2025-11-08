@@ -1,13 +1,13 @@
 /**
- * Custom Sport Configuration Example
+ * Custom Activity Configuration Example
  *
- * This example shows how to create a completely custom sport configuration
+ * This example shows how to create a completely custom activity configuration
  * for a fictional sport called "Quidditch" (inspired by Harry Potter)
  */
 
 import { TeamOptimizerService } from '../src/index.js';
 
-// Define a custom sport: Quidditch
+// Define a custom activity: Quidditch
 const quidditchConfig = {
     name: 'Quidditch',
 
@@ -95,7 +95,7 @@ async function optimizeQuidditchTeams() {
         const teamCount = 4;
 
         console.log('Configuration:');
-        console.log(`  Sport: ${quidditchConfig.name}`);
+        console.log(`  Activity: ${quidditchConfig.name}`);
         console.log(`  Players available: ${players.length}`);
         console.log(`  Teams to create: ${teamCount} (Gryffindor, Slytherin, Ravenclaw, Hufflepuff)`);
         console.log(`  Players per team: 7`);

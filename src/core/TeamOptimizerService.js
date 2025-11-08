@@ -1,4 +1,4 @@
-// Team Optimizer Service - Universal team balancing for any sport
+// Team Optimizer Service - Universal team balancing for any activity
 // Orchestrates multiple optimization algorithms and manages the optimization lifecycle
 
 import GeneticAlgorithmOptimizer from '../algorithms/GeneticAlgorithmOptimizer.js';
@@ -18,24 +18,24 @@ import SolutionOrganizer from '../services/SolutionOrganizer.js';
 
 class TeamOptimizerService {
     /**
-     * @param {Object} sportConfig - Sport-specific configuration
+     * @param {Object} activityConfig - Activity-specific configuration
      * @param {Function} customEvaluationFn - Optional custom evaluation function for team strength
      */
-    constructor(sportConfig, customEvaluationFn = null) {
+    constructor(activityConfig, customEvaluationFn = null) {
         // Initialize services
-        this.validationService = new ValidationService(sportConfig);
+        this.validationService = new ValidationService(activityConfig);
 
-        // Validate sport configuration
-        if (!this.validationService.validateSportConfig(sportConfig)) {
-            throw new Error('Invalid sport configuration');
+        // Validate activity configuration
+        if (!this.validationService.validateActivityConfig(activityConfig)) {
+            throw new Error('Invalid activity configuration');
         }
 
-        this.sportConfig = sportConfig;
+        this.activityConfig = activityConfig;
 
         // Calculate team size from composition
-        this.teamSize = getTeamSize(sportConfig.defaultComposition);
+        this.teamSize = getTeamSize(activityConfig.defaultComposition);
 
-        console.log(`Initialized ${sportConfig.name || 'Team'} Optimizer (${this.teamSize} players per team)`);
+        console.log(`Initialized ${activityConfig.name || 'Team'} Optimizer (${this.teamSize} players per team)`);
 
         // Main configuration - which algorithms to use
         this.config = {
@@ -49,17 +49,17 @@ class TeamOptimizerService {
                 strongWeakSwapProbability: 0.6,
                 positionBalanceWeight: 0.3,
                 varianceWeight: 0.5,
-                positionWeights: sportConfig.positionWeights  // Add position weights from config
+                positionWeights: activityConfig.positionWeights  // Add position weights from config
             }
         };
 
         // Initialize evaluation and organization services
         this.evaluationService = new EvaluationService(
-            sportConfig,
+            activityConfig,
             this.config.adaptiveParameters,
             customEvaluationFn
         );
-        this.solutionOrganizer = new SolutionOrganizer(sportConfig);
+        this.solutionOrganizer = new SolutionOrganizer(activityConfig);
 
         // Algorithm-specific configurations
         this.algorithmConfigs = {
@@ -190,12 +190,12 @@ class TeamOptimizerService {
     }
 
     /**
-     * Calculate team strength using sport-specific position weights
+     * Calculate team strength using activity-specific position weights
      * @param {Array} team - Team to evaluate
      * @returns {number} Team strength
      */
     calculateTeamStrength(team) {
-        return calculateSimpleTeamStrength(team, this.sportConfig.positionWeights);
+        return calculateSimpleTeamStrength(team, this.activityConfig.positionWeights);
     }
 
     /**
@@ -204,7 +204,7 @@ class TeamOptimizerService {
      * @returns {Object} Balance metrics
      */
     evaluateBalance(teams) {
-        return calculateTeamBalance(teams, this.sportConfig.positionWeights);
+        return calculateTeamBalance(teams, this.activityConfig.positionWeights);
     }
 
     /**

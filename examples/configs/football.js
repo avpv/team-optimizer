@@ -1,4 +1,4 @@
-// Football (Soccer) sport configuration
+// Football (Soccer) activity configuration
 
 export default {
     name: 'Football',

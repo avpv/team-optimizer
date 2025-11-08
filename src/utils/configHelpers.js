@@ -10,20 +10,20 @@ export function getTeamSize(composition) {
 }
  
 /**
- * Validate sport configuration
- * @param {Object} config - Sport configuration
+ * Validate activity configuration
+ * @param {Object} config - Activity configuration
  * @returns {boolean} Is valid
  */
-export function validateSportConfig(config) {
+export function validateActivityConfig(config) {
     const required = ['positions', 'positionWeights', 'positionOrder', 'defaultComposition'];
- 
+
     for (const field of required) {
         if (!config[field]) {
             console.error(`Missing required field: ${field}`);
             return false;
         }
     }
- 
+
     // Check all positions have weights
     for (const pos of Object.keys(config.positions)) {
         if (!config.positionWeights[pos]) {
@@ -31,7 +31,7 @@ export function validateSportConfig(config) {
             config.positionWeights[pos] = 1.0;
         }
     }
- 
+
     // Check positionOrder contains all positions from defaultComposition
     const compositionPositions = Object.keys(config.defaultComposition);
     for (const pos of compositionPositions) {
@@ -39,22 +39,22 @@ export function validateSportConfig(config) {
             console.warn(`Position ${pos} from defaultComposition not in positionOrder`);
         }
     }
- 
+
     return true;
 }
  
 /**
  * Get team size from config
- * @param {Object} config - Sport configuration
+ * @param {Object} config - Activity configuration
  * @returns {number} Team size
  */
 export function getConfigTeamSize(config) {
     return getTeamSize(config.defaultComposition);
 }
- 
+
 /**
  * Merge custom composition with default config
- * @param {Object} config - Sport configuration
+ * @param {Object} config - Activity configuration
  * @param {Object} customComposition - Custom composition (optional)
  * @returns {Object} Effective composition
  */

@@ -1,10 +1,10 @@
-# Sport Configuration Schema
+# Activity Configuration Schema
 
-This document describes how to create sport configuration objects for the Team Optimizer library.
+This document describes how to create activity configuration objects for the Team Optimizer library.
 
 ## Overview
 
-Team Optimizer is sport-agnostic. You define the rules and positions for your sport by creating a configuration object that describes:
+Team Optimizer is activity-agnostic. You define the rules and positions for your activity by creating a configuration object that describes:
 - What positions exist
 - How many players per position per team
 - How important each position is (weights)
@@ -13,11 +13,11 @@ Team Optimizer is sport-agnostic. You define the rules and positions for your sp
 ## Configuration Object Structure
 
 ```javascript
-const sportConfig = {
-    name: string,              // Name of the sport (e.g., "Volleyball")
-    positions: object,         // Position codes and their full names
+const activityConfig = {
+    name: string,              // Name of the activity (e.g., "Volleyball", "Project Teams")
+    positions: object,         // Position/role codes and their full names
     positionOrder: array,      // Order for displaying positions
-    defaultComposition: object,// Default number of players per position
+    defaultComposition: object,// Default number of people per position/role
     positionWeights: object    // Importance weight for each position (1.0 = normal)
 };
 ```
@@ -25,14 +25,14 @@ const sportConfig = {
 ## Required Fields
 
 ### 1. `name` (string)
-The display name of your sport.
+The display name of your activity.
 
 ```javascript
 name: "Volleyball"
 ```
 
 ### 2. `positions` (object)
-Maps position codes to their full names. Position codes should be short (2-4 characters).
+Maps position/role codes to their full names. Position codes should be short (2-4 characters).
 
 ```javascript
 positions: {
@@ -205,8 +205,8 @@ If validation fails, an error will be thrown with a descriptive message.
 ## Tips for Creating Configs
 
 1. **Position Codes**: Use short, memorable codes (2-4 characters)
-2. **Position Weights**: Start with all weights at 1.0, then adjust based on your sport's dynamics
-3. **Composition**: Make sure the total players per team matches your sport's requirements
+2. **Position Weights**: Start with all weights at 1.0, then adjust based on your activity's dynamics
+3. **Composition**: Make sure the total people per team matches your activity's requirements
 4. **Testing**: Test with small datasets first to validate your configuration
 
 ## Advanced: Custom Evaluation Functions

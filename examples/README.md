@@ -1,18 +1,18 @@
 # Team Optimizer Examples
 
-This directory contains examples demonstrating how to use the Team Optimizer library for various sports and scenarios.
+This directory contains examples demonstrating how to use the Team Optimizer library for various activities and scenarios.
 
 ## 📁 Directory Structure
 
 ```
 examples/
-├── configs/              # Sample sport configurations
+├── configs/              # Sample activity configurations (sports examples)
 │   ├── volleyball.js     # Volleyball configuration
 │   ├── basketball.js     # Basketball configuration
 │   └── football.js       # Football/Soccer configuration
 ├── basic-usage.js        # Simple getting-started example
 ├── volleyball-example.js # Complete volleyball team optimization
-└── custom-sport.js       # Creating a custom sport (Quidditch)
+└── custom-sport.js       # Creating a custom activity (Quidditch example)
 ```
 
 ## 🚀 Running Examples
@@ -36,7 +36,7 @@ node examples/custom-sport.js
 
 **Perfect for:** First-time users
 **Demonstrates:**
-- Creating a simple sport configuration (5-a-side soccer)
+- Creating a simple activity configuration (5-a-side soccer)
 - Defining players with positions and ratings
 - Running basic optimization
 - Interpreting results
@@ -45,7 +45,7 @@ node examples/custom-sport.js
 ```javascript
 import { TeamOptimizerService } from 'team-optimizer';
 
-const config = { /* sport configuration */ };
+const config = { /* activity configuration */ };
 const optimizer = new TeamOptimizerService(config);
 const result = await optimizer.optimize(composition, teamCount, players);
 ```
@@ -54,7 +54,7 @@ const result = await optimizer.optimize(composition, teamCount, players);
 
 **Perfect for:** Real-world scenarios
 **Demonstrates:**
-- Using a complete sport configuration
+- Using a complete activity configuration
 - Handling multiple positions
 - Working with multi-position players
 - Detailed result analysis
@@ -66,24 +66,24 @@ const result = await optimizer.optimize(composition, teamCount, players);
 - Realistic player ratings
 - Comprehensive result display
 
-### 3. Custom Sport (`custom-sport.js`)
+### 3. Custom Activity (`custom-sport.js`)
 
-**Perfect for:** Creating your own sport configurations
+**Perfect for:** Creating your own configurations
 **Demonstrates:**
-- Defining a completely custom sport (Quidditch)
-- Custom position names and codes
-- Adjusting position weights for game importance
+- Defining a completely custom activity (Quidditch as example)
+- Custom position/role names and codes
+- Adjusting position weights for importance
 - Creating multiple teams (4 in this example)
 - Creative result presentation
 
 **Use this as a template for:**
-- Creating configurations for niche sports
-- Adapting the library for non-sport team balancing
+- Creating configurations for any team-based activity
+- Adapting the library for work, education, or other scenarios
 - Understanding position weight impact
 
 ## 📖 Configuration Files
 
-The `configs/` directory contains ready-to-use configurations for popular sports:
+The `configs/` directory contains ready-to-use configurations (sports examples):
 
 ### Volleyball (`configs/volleyball.js`)
 - 7 players per team
@@ -104,14 +104,14 @@ The `configs/` directory contains ready-to-use configurations for popular sports
 
 1. **Copy a template:**
    ```bash
-   cp examples/configs/volleyball.js examples/configs/my-sport.js
+   cp examples/configs/volleyball.js examples/configs/my-activity.js
    ```
 
 2. **Modify the structure:**
    ```javascript
    export default {
-       name: 'My Sport',
-       positions: { /* ... */ },
+       name: 'My Activity',
+       positions: { /* ... */ },  // or "roles" for non-sports
        positionOrder: [ /* ... */ ],
        defaultComposition: { /* ... */ },
        positionWeights: { /* ... */ }
@@ -120,7 +120,7 @@ The `configs/` directory contains ready-to-use configurations for popular sports
 
 3. **Test it:**
    ```javascript
-   import myConfig from './configs/my-sport.js';
+   import myConfig from './configs/my-activity.js';
    const optimizer = new TeamOptimizerService(myConfig);
    ```
 

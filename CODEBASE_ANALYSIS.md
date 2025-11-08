@@ -133,7 +133,7 @@ src/
 
 **Functions:**
 1. `getTeamSize(composition)` - Sums position counts
-2. `validateSportConfig(config)` - Validates config structure
+2. `validateActivityConfig(config)` - Validates config structure
 3. `getConfigTeamSize(config)` - Wrapper around getTeamSize
 4. `getEffectiveComposition(config, customComposition)` - Returns composition
 

@@ -1,4 +1,4 @@
-// Basketball sport configuration
+// Basketball activity configuration
 
 export default {
     name: 'Basketball',

@@ -2,7 +2,7 @@
  * Basic usage example for Team Optimizer
  *
  * This example demonstrates:
- * - Creating a custom sport configuration
+ * - Creating a custom activity configuration
  * - Defining players with positions and ratings
  * - Running the optimization
  * - Interpreting results
@@ -10,7 +10,7 @@
 
 import { TeamOptimizerService } from '../src/index.js';
 
-// Step 1: Define your sport configuration
+// Step 1: Define your activity configuration
 const miniSoccerConfig = {
     name: '5-a-side Soccer',
     positions: {
