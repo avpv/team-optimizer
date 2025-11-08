@@ -1,5 +1,7 @@
 // src/services/optimizer/utils/swapOperations.js
 
+import { calculateTeamStrength } from './evaluationUtils.js';
+
 /**
  * Various swap operations for team optimization
  */
@@ -29,53 +31,6 @@ export function performSwap(teams, positions) {
             [teams[t1][idx1], teams[t2][idx2]] = [teams[t2][idx2], teams[t1][idx1]];
         }
     }
-}
-
-/**
- * Calculate team strength based on player ratings
- * @param {Array} players - Team players
- * @param {Object} positionWeights - Position weights from sport config
- * @param {boolean} usePositionWeights - Whether to apply position weights
- * @returns {Object} Team strength statistics
- */
-function calculateTeamStrength(players, positionWeights = {}, usePositionWeights = true) {
-    const DEFAULT_RATING = 1500;
-
-    if (!players || players.length === 0) {
-        return {
-            totalRating: 0,
-            weightedRating: 0,
-            averageRating: 0,
-            playerCount: 0
-        };
-    }
-
-    let totalRating = 0;
-    let weightedRating = 0;
-
-    players.forEach(player => {
-        const position = player.assignedPosition || player.positions?.[0];
-        const rating = position && player.ratings?.[position]
-            ? player.ratings[position]
-            : DEFAULT_RATING;
-
-        totalRating += rating;
-
-        // Apply position weight if enabled
-        if (usePositionWeights && position) {
-            const weight = positionWeights[position] || 1.0;
-            weightedRating += rating * weight;
-        } else {
-            weightedRating += rating;
-        }
-    });
-
-    return {
-        totalRating: Math.round(totalRating),
-        weightedRating: Math.round(weightedRating),
-        averageRating: Math.round(totalRating / players.length),
-        playerCount: players.length
-    };
 }
 
 /**

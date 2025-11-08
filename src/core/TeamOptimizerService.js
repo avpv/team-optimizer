@@ -8,9 +8,13 @@ import AntColonyOptimizer from '../algorithms/AntColonyOptimizer.js';
 import ConstraintProgrammingOptimizer from '../algorithms/ConstraintProgrammingOptimizer.js';
 import LocalSearchOptimizer from '../algorithms/LocalSearchOptimizer.js';
 
-import { sortTeamByPosition, getUnusedPlayers } from '../utils/solutionUtils.js';
 import { generateInitialSolutions } from '../utils/solutionGenerators.js';
-import { getTeamSize, validateSportConfig } from '../utils/configHelpers.js';
+import { getTeamSize } from '../utils/configHelpers.js';
+import { calculateTeamBalance } from '../utils/evaluationUtils.js';
+
+import ValidationService from '../services/ValidationService.js';
+import EvaluationService from '../services/EvaluationService.js';
+import SolutionOrganizer from '../services/SolutionOrganizer.js';
 
 class TeamOptimizerService {
     /**
@@ -18,13 +22,15 @@ class TeamOptimizerService {
      * @param {Function} customEvaluationFn - Optional custom evaluation function for team strength
      */
     constructor(sportConfig, customEvaluationFn = null) {
+        // Initialize services
+        this.validationService = new ValidationService(sportConfig);
+
         // Validate sport configuration
-        if (!validateSportConfig(sportConfig)) {
+        if (!this.validationService.validateSportConfig(sportConfig)) {
             throw new Error('Invalid sport configuration');
         }
 
         this.sportConfig = sportConfig;
-        this.customEvaluationFn = customEvaluationFn;
 
         // Calculate team size from composition
         this.teamSize = getTeamSize(sportConfig.defaultComposition);
@@ -46,6 +52,14 @@ class TeamOptimizerService {
                 positionWeights: sportConfig.positionWeights  // Add position weights from config
             }
         };
+
+        // Initialize evaluation and organization services
+        this.evaluationService = new EvaluationService(
+            sportConfig,
+            this.config.adaptiveParameters,
+            customEvaluationFn
+        );
+        this.solutionOrganizer = new SolutionOrganizer(sportConfig);
 
         // Algorithm-specific configurations
         this.algorithmConfigs = {
@@ -106,15 +120,15 @@ class TeamOptimizerService {
      * @returns {Promise<Object>} Optimization result
      */
     async optimize(composition, teamCount, players) {
-        // Validate input
-        const validation = this.enhancedValidate(composition, teamCount, players);
+        // Validate input using ValidationService
+        const validation = this.validationService.validate(composition, teamCount, players);
         if (!validation.isValid) {
             throw new Error(validation.errors.map(e => e.message).join(', '));
         }
 
-        // Prepare data
+        // Prepare data using SolutionOrganizer
         this.adaptParameters(teamCount, players.length);
-        const playersByPosition = this.groupByPosition(players);
+        const playersByPosition = this.solutionOrganizer.groupByPosition(players);
         const positions = Object.keys(composition).filter(pos => composition[pos] > 0);
 
         // Generate initial solutions
@@ -127,7 +141,7 @@ class TeamOptimizerService {
             teamCount,
             playersByPosition,
             positions,
-            evaluateFn: (teams) => this.evaluateSolution(teams)
+            evaluateFn: (teams) => this.evaluationService.evaluateSolution(teams)
         };
 
         // Run algorithms in parallel
@@ -136,8 +150,8 @@ class TeamOptimizerService {
             problemContext
         );
 
-        // Select best result
-        const scores = results.map(r => this.evaluateSolution(r));
+        // Select best result using EvaluationService
+        const scores = results.map(r => this.evaluationService.evaluateSolution(r));
         const bestIdx = scores.indexOf(Math.min(...scores));
 
         // Log algorithm performance for debugging
@@ -160,23 +174,15 @@ class TeamOptimizerService {
         const bestTeams = await localSearchOptimizer.solve(localSearchContext);
         this.algorithmStats.localSearch = localSearchOptimizer.getStatistics();
 
-        // Sort teams by strength (strongest first) using weighted ratings
-        bestTeams.sort((a, b) => {
-            const aStrength = this.calculateTeamStrength(a);
-            const bStrength = this.calculateTeamStrength(b);
-            return bStrength - aStrength;
-        });
+        // Organize final solution using SolutionOrganizer
+        const { teams, unusedPlayers } = this.solutionOrganizer.prepareFinalSolution(bestTeams, players);
 
-        // Sort players within each team by position order
-        bestTeams.forEach(team => sortTeamByPosition(team, this.sportConfig.positionOrder));
-
-        const balance = this.evaluateBalance(bestTeams);
-        const unused = getUnusedPlayers(bestTeams, players);
+        const balance = this.evaluateBalance(teams);
 
         return {
-            teams: bestTeams,
+            teams,
             balance,
-            unusedPlayers: unused,
+            unusedPlayers,
             validation,
             algorithm: `${algorithmNames[bestIdx]} + Local Search Refinement`,
             statistics: this.getAlgorithmStatistics()
@@ -189,21 +195,7 @@ class TeamOptimizerService {
      * @returns {number} Team strength
      */
     calculateTeamStrength(team) {
-        if (!team || !Array.isArray(team)) return 0;
-
-        let totalRating = 0;
-        let totalWeight = 0;
-
-        team.forEach(player => {
-            const position = player.assignedPosition;
-            const rating = player.positionRating || 1500;
-            const weight = this.sportConfig.positionWeights[position] || 1.0;
-
-            totalRating += rating * weight;
-            totalWeight += weight;
-        });
-
-        return totalWeight > 0 ? totalRating / totalWeight : 0;
+        return calculateSimpleTeamStrength(team, this.sportConfig.positionWeights);
     }
 
     /**
@@ -212,23 +204,7 @@ class TeamOptimizerService {
      * @returns {Object} Balance metrics
      */
     evaluateBalance(teams) {
-        const teamStrengths = teams.map(team => this.calculateTeamStrength(team));
-
-        const maxStrength = Math.max(...teamStrengths);
-        const minStrength = Math.min(...teamStrengths);
-        const avgStrength = teamStrengths.reduce((a, b) => a + b, 0) / teamStrengths.length;
-        const variance = teamStrengths.reduce((sum, s) => sum + Math.pow(s - avgStrength, 2), 0) / teamStrengths.length;
-        const stdDev = Math.sqrt(variance);
-
-        return {
-            difference: maxStrength - minStrength,
-            variance,
-            standardDeviation: stdDev,
-            average: avgStrength,
-            min: minStrength,
-            max: maxStrength,
-            teamStrengths
-        };
+        return calculateTeamBalance(teams, this.sportConfig.positionWeights);
     }
 
     /**
@@ -280,7 +256,7 @@ class TeamOptimizerService {
 
             algorithmPromises.push(
                 Promise.all(tabuResults).then(results => {
-                    const scores = results.map(r => this.evaluateSolution(r));
+                    const scores = results.map(r => this.evaluationService.evaluateSolution(r));
                     const bestIdx = scores.indexOf(Math.min(...scores));
                     this.algorithmStats.tabuSearch = { iterations: startCount * this.algorithmConfigs.tabuSearch.iterations, improvements: 0 };
                     return results[bestIdx];
@@ -362,109 +338,6 @@ class TeamOptimizerService {
         }
 
         return { results, algorithmNames: successfulAlgorithmNames };
-    }
-
-    /**
-     * Evaluate solution quality (lower is better)
-     * Uses position-weighted ratings for more accurate team balance
-     * @param {Array} teams - Solution to evaluate
-     * @returns {number} Quality score
-     */
-    evaluateSolution(teams) {
-        // Use custom evaluation function if provided
-        if (this.customEvaluationFn) {
-            return this.customEvaluationFn(teams, this);
-        }
-
-        // Default evaluation
-        if (!teams || !Array.isArray(teams) || teams.length === 0) return Infinity;
-
-        // Use weighted ratings for team strength calculation
-        const teamStrengths = teams.map(team => {
-            if (!Array.isArray(team)) return 0;
-            return this.calculateTeamStrength(team);
-        });
-
-        if (teamStrengths.some(isNaN)) return Infinity;
-
-        const balance = Math.max(...teamStrengths) - Math.min(...teamStrengths);
-        const avg = teamStrengths.reduce((a, b) => a + b, 0) / teamStrengths.length;
-        const variance = teamStrengths.reduce((sum, s) => sum + Math.pow(s - avg, 2), 0) / teamStrengths.length;
-
-        // Position-level balance with position weights applied
-        let positionImbalance = 0;
-        Object.keys(this.sportConfig.positions).forEach(pos => {
-            const positionWeight = this.sportConfig.positionWeights[pos] || 1.0;
-            const posStrengths = teams.map(team =>
-                team.filter(p => p.assignedPosition === pos)
-                    .reduce((sum, p) => sum + (p.positionRating * positionWeight), 0)
-            );
-            if (posStrengths.length > 1 && posStrengths.some(s => s > 0)) {
-                positionImbalance += (Math.max(...posStrengths) - Math.min(...posStrengths));
-            }
-        });
-
-        return balance + Math.sqrt(variance) * this.config.adaptiveParameters.varianceWeight +
-            positionImbalance * this.config.adaptiveParameters.positionBalanceWeight;
-    }
-
-    /**
-     * Enhanced validation of input parameters
-     * @param {Object} composition - Position composition
-     * @param {number} teamCount - Number of teams
-     * @param {Array} players - Available players
-     * @returns {Object} Validation result
-     */
-    enhancedValidate(composition, teamCount, players) {
-        const errors = [];
-        const warnings = [];
-        let totalNeeded = 0;
-
-        Object.entries(composition).forEach(([position, count]) => {
-            if (count > 0) {
-                const needed = count * teamCount;
-                const available = players.filter(p => p.positions.includes(position)).length;
-                totalNeeded += needed;
-                if (available < needed) {
-                    errors.push({
-                        position,
-                        needed,
-                        available,
-                        message: `Not enough ${this.sportConfig.positions[position] || position}s: need ${needed}, have ${available}`
-                    });
-                }
-            }
-        });
-
-        if (players.length < totalNeeded) {
-            errors.push({
-                message: `Not enough total players: need ${totalNeeded}, have ${players.length}`
-            });
-        }
-
-        return { isValid: errors.length === 0, errors, warnings };
-    }
-
-    /**
-     * Group players by their positions
-     * @param {Array} players - All players
-     * @returns {Object} Players grouped by position
-     */
-    groupByPosition(players) {
-        const grouped = {};
-        players.forEach(player => {
-            if (player.positions && Array.isArray(player.positions)) {
-                player.positions.forEach(position => {
-                    if (!grouped[position]) grouped[position] = [];
-                    grouped[position].push({
-                        ...player,
-                        assignedPosition: position,
-                        positionRating: player.ratings[position] || 1500
-                    });
-                });
-            }
-        });
-        return grouped;
     }
 
     /**

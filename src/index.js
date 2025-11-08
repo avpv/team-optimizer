@@ -11,6 +11,11 @@
 export { default as TeamOptimizerService } from './core/TeamOptimizerService.js';
 export { default as IOptimizer } from './core/IOptimizer.js';
 
+// Services
+export { default as ValidationService } from './services/ValidationService.js';
+export { default as EvaluationService } from './services/EvaluationService.js';
+export { default as SolutionOrganizer } from './services/SolutionOrganizer.js';
+
 // Algorithms
 export { default as GeneticAlgorithmOptimizer } from './algorithms/GeneticAlgorithmOptimizer.js';
 export { default as TabuSearchOptimizer } from './algorithms/TabuSearchOptimizer.js';
@@ -24,8 +29,5 @@ export * from './utils/solutionGenerators.js';
 export * from './utils/solutionUtils.js';
 export * from './utils/swapOperations.js';
 export * from './utils/configHelpers.js';
-
-// Sport configurations
-export { default as volleyballConfig } from './config/volleyball.js';
-export { default as footballConfig } from './config/football.js';
-export { default as basketballConfig } from './config/basketball.js';
+export * from './utils/evaluationUtils.js';
+export { default as WarningTracker, warningTracker } from './utils/warningTracker.js';
