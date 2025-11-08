@@ -33,19 +33,55 @@ export function performSwap(teams, positions) {
 
 /**
  * Calculate team strength based on player ratings
- * @param {Array} team - Team to evaluate
- * @returns {number} Team strength
+ * @param {Array} players - Team players
+ * @param {boolean} usePositionWeights - Whether to apply position weights
+ * @returns {Object} Team strength statistics
  */
-function calculateTeamStrength(team) {
-    if (!team || !Array.isArray(team) || team.length === 0) return 0;
+function calculateTeamStrength(players, usePositionWeights = true) {
+    const DEFAULT_RATING = 1500;
+    const POSITION_WEIGHTS = {
+        'S': 1.3,
+        'OPP': 1.2,
+        'OH': 1.1,
+        'MB': 1.0,
+        'L': 0.9
+    };
+
+    if (!players || players.length === 0) {
+        return {
+            totalRating: 0,
+            weightedRating: 0,
+            averageRating: 0,
+            playerCount: 0
+        };
+    }
 
     let totalRating = 0;
-    team.forEach(player => {
-        const rating = player.positionRating || 1500;
+    let weightedRating = 0;
+
+    players.forEach(player => {
+        const position = player.assignedPosition || player.positions?.[0];
+        const rating = position && player.ratings?.[position]
+            ? player.ratings[position]
+            : DEFAULT_RATING;
+
         totalRating += rating;
+
+        // Apply position weight if enabled
+        if (usePositionWeights && position) {
+            const weight = POSITION_WEIGHTS[position] || 1.0;
+            weightedRating += rating * weight;
+        } else {
+            weightedRating += rating;
+        }
     });
 
-    return totalRating / team.length;
+    return {
+        totalRating: Math.round(totalRating),
+        weightedRating: Math.round(weightedRating),
+        averageRating: Math.round(totalRating / players.length),
+        playerCount: players.length
+    };
 }
 
 /**
@@ -58,7 +94,7 @@ function calculateTeamStrength(team) {
 export function performAdaptiveSwap(teams, positions, adaptiveParams) {
     const teamStrengths = teams.map((team, idx) => ({
         idx,
-        strength: calculateTeamStrength(team)
+        strength: calculateTeamStrength(team, true).weightedRating
     })).sort((a, b) => b.strength - a.strength);
     
     if (teamStrengths.length < 2) {
