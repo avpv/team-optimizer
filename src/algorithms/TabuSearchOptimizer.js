@@ -1,6 +1,6 @@
 // src/services/optimizer/algorithms/TabuSearchOptimizer.js
 
-import IOptimizer from '../IOptimizer.js';
+import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams, hashSolution } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
 

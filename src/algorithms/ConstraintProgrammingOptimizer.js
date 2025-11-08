@@ -1,6 +1,6 @@
 // src/services/optimizer/algorithms/ConstraintProgrammingOptimizer.js
 
-import IOptimizer from '../IOptimizer.js';
+import IOptimizer from '../core/IOptimizer.js';
 import { generateInitialSolutions } from '../utils/solutionGenerators.js';
 
 /**

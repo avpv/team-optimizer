@@ -4,8 +4,6 @@
  * Various swap operations for team optimization
  */
 
-import eloService from '../../EloService.js';
-
 /**
  * Perform a simple random swap between two random teams at random positions
  * @param {Array} teams - Array of teams
@@ -34,6 +32,23 @@ export function performSwap(teams, positions) {
 }
 
 /**
+ * Calculate team strength based on player ratings
+ * @param {Array} team - Team to evaluate
+ * @returns {number} Team strength
+ */
+function calculateTeamStrength(team) {
+    if (!team || !Array.isArray(team) || team.length === 0) return 0;
+
+    let totalRating = 0;
+    team.forEach(player => {
+        const rating = player.positionRating || 1500;
+        totalRating += rating;
+    });
+
+    return totalRating / team.length;
+}
+
+/**
  * Perform an adaptive swap between strongest and weakest teams
  * Uses position-weighted ratings for more accurate team strength evaluation
  * @param {Array} teams - Array of teams
@@ -43,7 +58,7 @@ export function performSwap(teams, positions) {
 export function performAdaptiveSwap(teams, positions, adaptiveParams) {
     const teamStrengths = teams.map((team, idx) => ({
         idx,
-        strength: eloService.calculateTeamStrength(team, true).weightedRating
+        strength: calculateTeamStrength(team)
     })).sort((a, b) => b.strength - a.strength);
     
     if (teamStrengths.length < 2) {
