@@ -65,7 +65,7 @@ class TeamOptimizerService {
         this.algorithmConfigs = {
             geneticAlgorithm: {
                 populationSize: 20,
-                generationCount: 100,
+                generationCount: 300,
                 mutationRate: 0.2,
                 crossoverRate: 0.7,
                 elitismCount: 2,
