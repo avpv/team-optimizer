@@ -208,6 +208,15 @@ class TeamOptimizerService {
     }
 
     /**
+     * Evaluate solution quality (lower is better)
+     * @param {Array} teams - Teams to evaluate
+     * @returns {number} Quality score (lower is better)
+     */
+    evaluateSolution(teams) {
+        return this.evaluationService.evaluateSolution(teams);
+    }
+
+    /**
      * Run all enabled optimization algorithms in parallel
      * Each algorithm now starts from a randomly selected initial solution for diversity
      * @param {Array} initialSolutions - Initial candidate solutions
