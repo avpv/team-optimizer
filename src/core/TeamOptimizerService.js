@@ -65,7 +65,7 @@ class TeamOptimizerService {
         this.algorithmConfigs = {
             geneticAlgorithm: {
                 populationSize: 20,
-                generationCount: 100,
+                generationCount: 300,
                 mutationRate: 0.2,
                 crossoverRate: 0.7,
                 elitismCount: 2,
@@ -74,21 +74,21 @@ class TeamOptimizerService {
             },
             tabuSearch: {
                 tabuTenure: 100,
-                iterations: 5000,
+                iterations: 10000,
                 neighborCount: 20,
                 diversificationFrequency: 1000
             },
             simulatedAnnealing: {
                 initialTemperature: 1000,
                 coolingRate: 0.995,
-                iterations: 50000,
+                iterations: 100000,
                 reheatEnabled: true,
                 reheatTemperature: 500,
-                reheatIterations: 10000
+                reheatIterations: 20000
             },
             antColony: {
                 antCount: 20,
-                iterations: 100,
+                iterations: 300,
                 alpha: 1.0,
                 beta: 2.0,
                 evaporationRate: 0.1,
@@ -104,7 +104,7 @@ class TeamOptimizerService {
                 conflictAnalysis: true
             },
             localSearch: {
-                iterations: 1500,
+                iterations: 3000,
                 neighborhoodSize: 10
             }
         };
