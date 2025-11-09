@@ -74,7 +74,7 @@ function createSmartSolution(composition, teamCount, playersByPosition, randomiz
 
     // Phase 2: Allocate multi-position players based on position scarcity
     // Keep filling until all positions are satisfied
-    let maxIterations = 100;
+    let maxIterations = 200;
     let iteration = 0;
 
     while (iteration < maxIterations) {
