@@ -42,36 +42,45 @@ class SimulatedAnnealingOptimizer extends IOptimizer {
         for (let iter = 0; iter < this.config.iterations; iter++) {
             this.stats.iterations = iter + 1;
             this.stats.temperature = temp;
-            
+
             const neighbor = cloneTeams(current);
             performUniversalSwap(neighbor, positions, this.adaptiveParams);
             const neighborScore = evaluateFn(neighbor);
             const delta = neighborScore - currentScore;
-            
+
+            // Track if we found an improvement
+            let foundImprovement = false;
+
             // Accept if better, or probabilistically if worse
             if (delta < 0 || Math.random() < Math.exp(-delta / temp)) {
                 current = neighbor;
                 currentScore = neighborScore;
-                
+
                 if (neighborScore < bestScore) {
                     best = cloneTeams(neighbor);
                     bestScore = neighborScore;
-                    iterationSinceImprovement = 0;
+                    foundImprovement = true;
                     this.stats.improvements++;
-                } else {
-                    iterationSinceImprovement++;
                 }
             }
-            
+
+            // FIXED: Increment iteration counter EVERY iteration without improvement
+            // (not just when solution is accepted)
+            if (foundImprovement) {
+                iterationSinceImprovement = 0;
+            } else {
+                iterationSinceImprovement++;
+            }
+
             // Cool down temperature
             temp *= this.config.coolingRate;
-            
+
             // Reheat if enabled and stagnating
             if (this.config.reheatEnabled && iterationSinceImprovement > this.config.reheatIterations) {
                 temp = this.config.reheatTemperature;
                 iterationSinceImprovement = 0;
             }
-            
+
             // Yield control periodically
             if (iter % 5000 === 0) await new Promise(resolve => setTimeout(resolve, 1));
         }
