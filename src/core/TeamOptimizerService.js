@@ -150,17 +150,16 @@ class TeamOptimizerService {
             problemContext
         );
 
-        // Select best result based on balance (lower difference = better balance)
-        const balanceMetrics = results.map(r => this.evaluateBalance(r));
-        const balanceScores = balanceMetrics.map(b => b.difference); // Could also use variance or standardDeviation
-        const bestIdx = balanceScores.indexOf(Math.min(...balanceScores));
+        // Select best result based on score (lower is better)
+        const scores = results.map(r => this.evaluationService.evaluateSolution(r));
+        const bestIdx = scores.indexOf(Math.min(...scores));
 
         // Log algorithm performance for debugging
         console.log('=== Algorithm Performance ===');
         algorithmNames.forEach((name, idx) => {
-            console.log(`${name}: balance ${balanceScores[idx].toFixed(2)} (diff: ${balanceMetrics[idx].difference.toFixed(2)}, variance: ${balanceMetrics[idx].variance.toFixed(2)})`);
+            console.log(`${name}: score ${scores[idx].toFixed(2)}`);
         });
-        console.log(`Best result from: ${algorithmNames[bestIdx]} (balance: ${balanceScores[bestIdx].toFixed(2)})`);
+        console.log(`Best result from: ${algorithmNames[bestIdx]} (score: ${scores[bestIdx].toFixed(2)})`);
         console.log('============================');
 
         // Refine with local search
