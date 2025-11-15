@@ -3,7 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
-import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
+import { performIntelligentSwap, getIntelligentSwapProbability } from '../utils/advancedSwapOperations.js';
 import { createRandomSolution } from '../utils/solutionGenerators.js';
 
 /**
@@ -88,14 +88,27 @@ class GeneticAlgorithmOptimizer extends IOptimizer {
                 ? Math.min(0.5, this.config.mutationRate * 2)
                 : this.config.mutationRate;
 
+            // Calculate adaptive intelligent swap probability
+            const iterationProgress = gen / this.config.generationCount;
+            const intelligentSwapProb = getIntelligentSwapProbability('genetic', {
+                iterationProgress,
+                stagnation: stagnationCount > 10
+            });
+
+            // Determine phase
+            const phase = stagnationCount > 10 ? 'diversification' :
+                         iterationProgress < 0.3 ? 'exploration' : 'exploitation';
+
             for (let i = this.config.elitismCount; i < newPopulation.length; i++) {
                 if (Math.random() < currentMutationRate) {
                     // Apply multiple swaps when stagnating for more diversity
                     const swapCount = stagnationCount > 10 ? 2 : 1;
                     for (let s = 0; s < swapCount; s++) {
-                        // Use intelligent swaps 70% of time, universal swaps 30%
-                        if (Math.random() < 0.7) {
-                            performIntelligentSwap(newPopulation[i], positions, composition, this.adaptiveParams);
+                        if (Math.random() < intelligentSwapProb) {
+                            performIntelligentSwap(newPopulation[i], positions, composition, this.adaptiveParams, {
+                                phase,
+                                iterationProgress
+                            });
                         } else {
                             performUniversalSwap(newPopulation[i], positions, this.adaptiveParams);
                         }

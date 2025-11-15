@@ -3,7 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
-import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
+import { performIntelligentSwap, getIntelligentSwapProbability } from '../utils/advancedSwapOperations.js';
 
 /**
  * Simulated Annealing Optimizer
@@ -46,10 +46,25 @@ class SimulatedAnnealingOptimizer extends IOptimizer {
             this.stats.temperature = temp;
 
             const neighbor = cloneTeams(current);
-            // Use intelligent swaps 75% of time, especially at lower temperatures
-            const useIntelligent = Math.random() < 0.75 || temp < this.config.initialTemperature * 0.1;
-            if (useIntelligent) {
-                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+
+            // Adaptive intelligent swap probability based on temperature
+            const normalizedTemp = temp / this.config.initialTemperature;
+            const iterationProgress = iter / this.config.iterations;
+            const intelligentSwapProb = getIntelligentSwapProbability('simulated_annealing', {
+                temperature: normalizedTemp,
+                iterationProgress,
+                stagnation: iterationSinceImprovement > this.config.reheatIterations / 2
+            });
+
+            // Determine phase based on temperature
+            const phase = normalizedTemp > 0.3 ? 'diversification' : 'exploitation';
+
+            if (Math.random() < intelligentSwapProb) {
+                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams, {
+                    phase,
+                    temperature: normalizedTemp,
+                    iterationProgress
+                });
             } else {
                 performUniversalSwap(neighbor, positions, this.adaptiveParams);
             }

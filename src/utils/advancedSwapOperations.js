@@ -366,34 +366,99 @@ export function performBalancedMultiSwap(teams, positions, adaptiveParams) {
  * @param {Array} positions - Available positions
  * @param {Object} composition - Position composition
  * @param {Object} adaptiveParams - Adaptive parameters
+ * @param {Object} context - Optional context for adaptive selection (phase, temperature, iteration, etc.)
  * @returns {void}
  */
-export function performIntelligentSwap(teams, positions, composition, adaptiveParams) {
-    // Choose swap strategy based on probability distribution
+export function performIntelligentSwap(teams, positions, composition, adaptiveParams, context = {}) {
+    // Adaptive strategy selection based on context
+    const { phase = 'exploration', temperature = 1.0, iterationProgress = 0 } = context;
+
+    // Choose swap strategy based on phase and probability distribution
     const rand = Math.random();
 
-    if (rand < 0.25 && composition) {
-        // 25% - Fairness-driven swap
+    // Adjust probabilities based on phase
+    let fairnessThreshold = 0.25;
+    let consistencyThreshold = 0.45;
+    let weaknessThreshold = 0.60;
+    let chainThreshold = 0.75;
+
+    if (phase === 'exploitation' || iterationProgress > 0.7) {
+        // Later in optimization: favor targeted swaps
+        fairnessThreshold = 0.35;     // 35% fairness
+        consistencyThreshold = 0.60;  // 25% consistency
+        weaknessThreshold = 0.80;     // 20% weakness
+        chainThreshold = 0.90;        // 10% chain
+        // 10% balanced multi-swap
+    } else if (phase === 'diversification' || temperature > 0.5) {
+        // Early/diversification: favor exploratory swaps
+        fairnessThreshold = 0.15;     // 15% fairness
+        consistencyThreshold = 0.25;  // 10% consistency
+        weaknessThreshold = 0.35;     // 10% weakness
+        chainThreshold = 0.60;        // 25% chain
+        // 40% balanced multi-swap
+    }
+
+    if (rand < fairnessThreshold && composition) {
+        // Fairness-driven swap
         const success = performFairnessSwap(teams, positions, adaptiveParams);
         if (!success) {
             // Fallback to weakness-targeted
             performWeaknessTargetedSwap(teams, composition, adaptiveParams);
         }
-    } else if (rand < 0.45 && composition) {
-        // 20% - Consistency-driven swap
+    } else if (rand < consistencyThreshold && composition) {
+        // Consistency-driven swap
         const success = performConsistencySwap(teams, composition, adaptiveParams);
         if (!success) {
             // Fallback to balanced multi-swap
             performBalancedMultiSwap(teams, positions, adaptiveParams);
         }
-    } else if (rand < 0.60 && composition) {
-        // 15% - Weakness-targeted swap
+    } else if (rand < weaknessThreshold && composition) {
+        // Weakness-targeted swap
         performWeaknessTargetedSwap(teams, composition, adaptiveParams);
-    } else if (rand < 0.75) {
-        // 15% - Chain swap
+    } else if (rand < chainThreshold) {
+        // Chain swap
         performChainSwap(teams, positions, adaptiveParams);
     } else {
-        // 25% - Balanced multi-swap
+        // Balanced multi-swap
         performBalancedMultiSwap(teams, positions, adaptiveParams);
+    }
+}
+
+/**
+ * Get recommended intelligent swap probability based on optimization context
+ * @param {string} algorithmType - Type of algorithm (ga, tabu, sa, etc.)
+ * @param {Object} context - Optimization context
+ * @returns {number} Recommended probability of using intelligent swap (0-1)
+ */
+export function getIntelligentSwapProbability(algorithmType, context = {}) {
+    const { iterationProgress = 0, stagnation = false, temperature = 1.0 } = context;
+
+    switch (algorithmType) {
+        case 'genetic':
+            // GA: Start with 70%, increase to 85% as we progress
+            return stagnation ? 0.50 : 0.70 + (iterationProgress * 0.15);
+
+        case 'tabu':
+            // Tabu: High intelligent swap rate (80-90%)
+            return stagnation ? 0.70 : 0.80 + (iterationProgress * 0.10);
+
+        case 'simulated_annealing':
+            // SA: Adaptive based on temperature
+            // High temp = more exploration (lower intelligent swap rate)
+            // Low temp = more exploitation (higher intelligent swap rate)
+            const tempFactor = 1 - Math.min(temperature, 1.0);
+            return 0.60 + (tempFactor * 0.30);
+
+        case 'hybrid':
+            // Hybrid: Depends on phase
+            return context.phase === 'exploration' ? 0.65 : 0.85;
+
+        case 'local_search':
+            // Local search: Very high intelligent swap rate
+            return 0.90;
+
+        default:
+            // Default: 75%
+            return 0.75;
     }
 }
