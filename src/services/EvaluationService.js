@@ -1,9 +1,18 @@
 /**
  * EvaluationService - Handles solution evaluation and scoring
  * Evaluates team balance, strength distribution, and position-level fairness
+ * Enhanced with advanced metrics: fairness, consistency, depth, and role balance
  */
 
 import { calculateSimpleTeamStrength } from '../utils/evaluationUtils.js';
+import {
+    calculateFairnessMetric,
+    calculateConsistencyMetric,
+    calculateDepthMetric,
+    calculateRoleBalanceMetric,
+    calculateAdvancedMetrics,
+    calculateCombinedAdvancedScore
+} from '../utils/advancedMetrics.js';
 
 class EvaluationService {
     /**
@@ -14,16 +23,32 @@ class EvaluationService {
     constructor(activityConfig, adaptiveParameters = {}, customEvaluationFn = null) {
         this.activityConfig = activityConfig;
         this.adaptiveParameters = {
+            // Basic weights
             varianceWeight: 0.5,
             positionBalanceWeight: 0.3,
+
+            // Advanced metrics weights
+            fairnessWeight: 0.4,
+            consistencyWeight: 0.3,
+            depthWeight: 0.1,
+            roleBalanceWeight: 0.2,
+
+            // Advanced metrics options
+            useAdvancedMetrics: true,
+            topPlayerPercent: 0.2,
+
             ...adaptiveParameters
         };
         this.customEvaluationFn = customEvaluationFn;
+
+        // Cache for composition (set by optimizer)
+        this.composition = null;
     }
 
     /**
      * Evaluate solution quality (lower is better)
      * Uses position-weighted ratings for more accurate team balance
+     * Enhanced with advanced metrics when enabled
      * @param {Array} teams - Solution to evaluate
      * @returns {number} Quality score (lower is better)
      */
@@ -59,10 +84,37 @@ class EvaluationService {
         // Position-level balance with position weights applied
         const positionImbalance = this.calculatePositionImbalance(teams);
 
-        // Combined score: balance + variance penalty + position imbalance penalty
-        return balance +
-               Math.sqrt(variance) * this.adaptiveParameters.varianceWeight +
-               positionImbalance * this.adaptiveParameters.positionBalanceWeight;
+        // Base score: balance + variance penalty + position imbalance penalty
+        let score = balance +
+                    Math.sqrt(variance) * this.adaptiveParameters.varianceWeight +
+                    positionImbalance * this.adaptiveParameters.positionBalanceWeight;
+
+        // Add advanced metrics if enabled
+        if (this.adaptiveParameters.useAdvancedMetrics && this.composition) {
+            const advancedMetrics = calculateAdvancedMetrics(
+                teams,
+                this.composition,
+                this.activityConfig.positionWeights,
+                {
+                    topPlayerPercent: this.adaptiveParameters.topPlayerPercent,
+                    includeFairness: this.adaptiveParameters.fairnessWeight > 0,
+                    includeConsistency: this.adaptiveParameters.consistencyWeight > 0,
+                    includeDepth: this.adaptiveParameters.depthWeight > 0,
+                    includeRoleBalance: this.adaptiveParameters.roleBalanceWeight > 0
+                }
+            );
+
+            const advancedScore = calculateCombinedAdvancedScore(advancedMetrics, {
+                fairnessWeight: this.adaptiveParameters.fairnessWeight,
+                consistencyWeight: this.adaptiveParameters.consistencyWeight,
+                depthWeight: this.adaptiveParameters.depthWeight,
+                roleBalanceWeight: this.adaptiveParameters.roleBalanceWeight
+            });
+
+            score += advancedScore;
+        }
+
+        return score;
     }
 
     /**
@@ -111,6 +163,89 @@ class EvaluationService {
             ...this.adaptiveParameters,
             ...newParameters
         };
+    }
+
+    /**
+     * Set composition for advanced metrics calculation
+     * @param {Object} composition - Position composition
+     */
+    setComposition(composition) {
+        this.composition = composition;
+    }
+
+    /**
+     * Get detailed evaluation with all metrics
+     * @param {Array} teams - Teams to evaluate
+     * @returns {Object} Detailed evaluation metrics
+     */
+    getDetailedEvaluation(teams) {
+        if (!teams || !Array.isArray(teams) || teams.length === 0) {
+            return null;
+        }
+
+        const teamStrengths = teams.map(team => {
+            if (!Array.isArray(team)) return 0;
+            return calculateSimpleTeamStrength(team, this.activityConfig.positionWeights);
+        });
+
+        const balance = Math.max(...teamStrengths) - Math.min(...teamStrengths);
+        const avg = teamStrengths.reduce((a, b) => a + b, 0) / teamStrengths.length;
+        const variance = teamStrengths.reduce((sum, s) => sum + Math.pow(s - avg, 2), 0) / teamStrengths.length;
+        const positionImbalance = this.calculatePositionImbalance(teams);
+
+        const evaluation = {
+            score: this.evaluateSolution(teams),
+            balance,
+            variance,
+            standardDeviation: Math.sqrt(variance),
+            positionImbalance,
+            teamStrengths,
+            average: avg
+        };
+
+        // Add advanced metrics if enabled
+        if (this.adaptiveParameters.useAdvancedMetrics && this.composition) {
+            evaluation.advancedMetrics = calculateAdvancedMetrics(
+                teams,
+                this.composition,
+                this.activityConfig.positionWeights,
+                {
+                    topPlayerPercent: this.adaptiveParameters.topPlayerPercent
+                }
+            );
+        }
+
+        return evaluation;
+    }
+
+    /**
+     * Calculate fairness metric (for external use)
+     * @param {Array} teams - Teams to evaluate
+     * @returns {Object} Fairness metrics
+     */
+    calculateFairness(teams) {
+        return calculateFairnessMetric(
+            teams,
+            this.activityConfig.positionWeights,
+            this.adaptiveParameters.topPlayerPercent
+        );
+    }
+
+    /**
+     * Calculate consistency metric (for external use)
+     * @param {Array} teams - Teams to evaluate
+     * @returns {Object} Consistency metrics
+     */
+    calculateConsistency(teams) {
+        if (!this.composition) {
+            console.warn('Composition not set for consistency calculation');
+            return null;
+        }
+        return calculateConsistencyMetric(
+            teams,
+            this.composition,
+            this.activityConfig.positionWeights
+        );
     }
 }
 

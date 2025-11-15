@@ -7,6 +7,7 @@ import SimulatedAnnealingOptimizer from '../algorithms/SimulatedAnnealingOptimiz
 import AntColonyOptimizer from '../algorithms/AntColonyOptimizer.js';
 import ConstraintProgrammingOptimizer from '../algorithms/ConstraintProgrammingOptimizer.js';
 import LocalSearchOptimizer from '../algorithms/LocalSearchOptimizer.js';
+import HybridOptimizer from '../algorithms/HybridOptimizer.js';
 
 import { generateInitialSolutions } from '../utils/solutionGenerators.js';
 import { getTeamSize } from '../utils/configHelpers.js';
@@ -44,11 +45,21 @@ class TeamOptimizerService {
             useSimulatedAnnealing: true,
             useAntColony: true,
             useConstraintProgramming: true,
+            useHybridOptimizer: true,  // New hybrid algorithm
             adaptiveSwapEnabled: true,
             adaptiveParameters: {
                 strongWeakSwapProbability: 0.6,
                 positionBalanceWeight: 0.3,
                 varianceWeight: 0.5,
+
+                // Advanced metrics weights
+                fairnessWeight: 0.4,
+                consistencyWeight: 0.3,
+                depthWeight: 0.1,
+                roleBalanceWeight: 0.2,
+                useAdvancedMetrics: true,
+                topPlayerPercent: 0.2,
+
                 positionWeights: activityConfig.positionWeights  // Add position weights from config
             }
         };
@@ -106,6 +117,26 @@ class TeamOptimizerService {
             localSearch: {
                 iterations: 3000,
                 neighborhoodSize: 10
+            },
+            hybrid: {
+                phase1: {
+                    populationSize: 15,
+                    generations: 100,
+                    mutationRate: 0.3,
+                    crossoverRate: 0.7,
+                    elitismCount: 2,
+                    tournamentSize: 3
+                },
+                phase2: {
+                    iterations: 3000,
+                    tabuTenure: 50,
+                    neighborhoodSize: 15,
+                    diversificationFrequency: 500
+                },
+                phase3: {
+                    iterations: 1000,
+                    neighborhoodSize: 10
+                }
             }
         };
 
@@ -130,6 +161,9 @@ class TeamOptimizerService {
         this.adaptParameters(teamCount, players.length);
         const playersByPosition = this.solutionOrganizer.groupByPosition(players);
         const positions = Object.keys(composition).filter(pos => composition[pos] > 0);
+
+        // Set composition in EvaluationService for advanced metrics
+        this.evaluationService.setComposition(composition);
 
         // Generate initial solutions
         const initialSolutions = generateInitialSolutions(composition, teamCount, playersByPosition);
@@ -315,6 +349,23 @@ class TeamOptimizerService {
             algorithmNames.push('Constraint Programming');
         }
 
+        // Hybrid Optimizer - combines GA, Tabu Search, and Local Search
+        if (this.config.useHybridOptimizer) {
+            const optimizer = new HybridOptimizer(
+                this.algorithmConfigs.hybrid,
+                this.config.adaptiveParameters
+            );
+            // Use random starting point for diversity
+            const context = { ...problemContext, initialSolution: getRandomInitialSolution() };
+            algorithmPromises.push(
+                optimizer.solve(context).then(result => {
+                    this.algorithmStats.hybrid = optimizer.getStatistics();
+                    return result;
+                })
+            );
+            algorithmNames.push('Hybrid Optimizer');
+        }
+
         // Fallback: if no algorithms enabled, enable defaults
         if (algorithmPromises.length === 0) {
             this.config.useGeneticAlgorithm = true;
@@ -368,7 +419,8 @@ class TeamOptimizerService {
             simulatedAnnealing: { iterations: 0, improvements: 0, temperature: 0 },
             antColony: { iterations: 0, improvements: 0 },
             constraintProgramming: { iterations: 0, improvements: 0, backtracks: 0, conflicts: 0 },
-            localSearch: { iterations: 0, improvements: 0 }
+            localSearch: { iterations: 0, improvements: 0 },
+            hybrid: { totalIterations: 0, totalImprovements: 0, bestPhase: null }
         };
     }
 
