@@ -3,6 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
+import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
 
 /**
  * Simulated Annealing Optimizer
@@ -27,6 +28,7 @@ class SimulatedAnnealingOptimizer extends IOptimizer {
     async solve(problemContext) {
         const {
             initialSolution,
+            composition,
             positions,
             evaluateFn
         } = problemContext;
@@ -44,7 +46,13 @@ class SimulatedAnnealingOptimizer extends IOptimizer {
             this.stats.temperature = temp;
 
             const neighbor = cloneTeams(current);
-            performUniversalSwap(neighbor, positions, this.adaptiveParams);
+            // Use intelligent swaps 75% of time, especially at lower temperatures
+            const useIntelligent = Math.random() < 0.75 || temp < this.config.initialTemperature * 0.1;
+            if (useIntelligent) {
+                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+            } else {
+                performUniversalSwap(neighbor, positions, this.adaptiveParams);
+            }
             const neighborScore = evaluateFn(neighbor);
             const delta = neighborScore - currentScore;
 

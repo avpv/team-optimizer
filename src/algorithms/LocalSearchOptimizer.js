@@ -3,6 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
+import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
 
 /**
  * Local Search Optimizer
@@ -26,6 +27,7 @@ class LocalSearchOptimizer extends IOptimizer {
     async solve(problemContext) {
         const {
             initialSolution,
+            composition,
             positions,
             evaluateFn
         } = problemContext;
@@ -38,7 +40,13 @@ class LocalSearchOptimizer extends IOptimizer {
                 this.stats.iterations = iter + 1;
 
                 const neighbor = cloneTeams(current);
-                performUniversalSwap(neighbor, positions, this.adaptiveParams);
+                // LocalSearch should heavily favor intelligent swaps (90%)
+                // as it's for final polishing
+                if (Math.random() < 0.9) {
+                    performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+                } else {
+                    performUniversalSwap(neighbor, positions, this.adaptiveParams);
+                }
                 const neighborScore = evaluateFn(neighbor);
 
                 // Accept only improvements (greedy hill climbing)

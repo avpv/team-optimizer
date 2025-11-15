@@ -3,6 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
+import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
 import { createRandomSolution } from '../utils/solutionGenerators.js';
 
 /**
@@ -92,7 +93,12 @@ class GeneticAlgorithmOptimizer extends IOptimizer {
                     // Apply multiple swaps when stagnating for more diversity
                     const swapCount = stagnationCount > 10 ? 2 : 1;
                     for (let s = 0; s < swapCount; s++) {
-                        performUniversalSwap(newPopulation[i], positions, this.adaptiveParams);
+                        // Use intelligent swaps 70% of time, universal swaps 30%
+                        if (Math.random() < 0.7) {
+                            performIntelligentSwap(newPopulation[i], positions, composition, this.adaptiveParams);
+                        } else {
+                            performUniversalSwap(newPopulation[i], positions, this.adaptiveParams);
+                        }
                     }
                 }
             }
