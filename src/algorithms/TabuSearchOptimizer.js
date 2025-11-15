@@ -3,7 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams, hashSolution } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
-import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
+import { performIntelligentSwap, getIntelligentSwapProbability } from '../utils/advancedSwapOperations.js';
 
 /**
  * Tabu Search Optimizer
@@ -42,7 +42,7 @@ class TabuSearchOptimizer extends IOptimizer {
 
         for (let iter = 0; iter < this.config.iterations; iter++) {
             this.stats.iterations = iter + 1;
-            const neighbors = this.generateNeighborhood(current, composition, positions, this.config.neighborCount);
+            const neighbors = this.generateNeighborhood(current, composition, positions, this.config.neighborCount, iter, iterationSinceImprovement);
             
             let bestNeighbor = null;
             let bestNeighborScore = Infinity;
@@ -107,11 +107,13 @@ class TabuSearchOptimizer extends IOptimizer {
             if (iter > 0 && iter % this.config.diversificationFrequency === 0) {
                 current = cloneTeams(best);
                 // Perform multiple swaps for strong diversification
-                // Mix of universal and intelligent swaps
                 const swapCount = Math.max(3, Math.floor(current[0].length / 2));
                 for (let i = 0; i < swapCount; i++) {
+                    // During diversification, use more exploratory swaps
                     if (Math.random() < 0.5) {
-                        performIntelligentSwap(current, positions, composition, this.adaptiveParams);
+                        performIntelligentSwap(current, positions, composition, this.adaptiveParams, {
+                            phase: 'diversification'
+                        });
                     } else {
                         performUniversalSwap(current, positions, this.adaptiveParams);
                     }
@@ -129,9 +131,11 @@ class TabuSearchOptimizer extends IOptimizer {
             if (iterationSinceImprovement > 500) {
                 current = cloneTeams(best);
                 for (let i = 0; i < 5; i++) {
-                    // Use more intelligent swaps for restart
+                    // Use more intelligent swaps for restart with diversification
                     if (Math.random() < 0.6) {
-                        performIntelligentSwap(current, positions, composition, this.adaptiveParams);
+                        performIntelligentSwap(current, positions, composition, this.adaptiveParams, {
+                            phase: 'diversification'
+                        });
                     } else {
                         performUniversalSwap(current, positions, this.adaptiveParams);
                     }
@@ -155,14 +159,26 @@ class TabuSearchOptimizer extends IOptimizer {
      * @param {Object} composition - Position composition
      * @param {Array} positions - Available positions
      * @param {number} size - Neighborhood size
+     * @param {number} iter - Current iteration (for adaptive behavior)
+     * @param {number} iterationSinceImprovement - Iterations without improvement
      * @returns {Array} Array of neighbor solutions
      */
-    generateNeighborhood(teams, composition, positions, size) {
+    generateNeighborhood(teams, composition, positions, size, iter = 0, iterationSinceImprovement = 0) {
+        const iterationProgress = iter / this.config.iterations;
+        const intelligentSwapProb = getIntelligentSwapProbability('tabu', {
+            iterationProgress,
+            stagnation: iterationSinceImprovement > 100
+        });
+
+        const phase = iterationProgress < 0.3 ? 'exploration' : 'exploitation';
+
         return Array.from({ length: size }, () => {
             const neighbor = cloneTeams(teams);
-            // Use intelligent swaps 80% of time for better neighborhood quality
-            if (Math.random() < 0.8) {
-                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+            if (Math.random() < intelligentSwapProb) {
+                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams, {
+                    phase,
+                    iterationProgress
+                });
             } else {
                 performUniversalSwap(neighbor, positions, this.adaptiveParams);
             }

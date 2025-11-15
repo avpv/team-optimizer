@@ -3,7 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
-import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
+import { performIntelligentSwap, getIntelligentSwapProbability } from '../utils/advancedSwapOperations.js';
 
 /**
  * Local Search Optimizer
@@ -36,14 +36,21 @@ class LocalSearchOptimizer extends IOptimizer {
             let current = cloneTeams(initialSolution);
             let currentScore = evaluateFn(current);
 
+            // Get intelligent swap probability for local search (very high)
+            const intelligentSwapProb = getIntelligentSwapProbability('local_search', {});
+
             for (let iter = 0; iter < this.config.iterations; iter++) {
                 this.stats.iterations = iter + 1;
 
                 const neighbor = cloneTeams(current);
-                // LocalSearch should heavily favor intelligent swaps (90%)
-                // as it's for final polishing
-                if (Math.random() < 0.9) {
-                    performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+                const iterationProgress = iter / this.config.iterations;
+
+                // LocalSearch should heavily favor intelligent swaps for final polishing
+                if (Math.random() < intelligentSwapProb) {
+                    performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams, {
+                        phase: 'exploitation',
+                        iterationProgress
+                    });
                 } else {
                     performUniversalSwap(neighbor, positions, this.adaptiveParams);
                 }

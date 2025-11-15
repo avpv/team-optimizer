@@ -13,6 +13,7 @@ import {
     calculateAdvancedMetrics,
     calculateCombinedAdvancedScore
 } from '../utils/advancedMetrics.js';
+import { hashSolution } from '../utils/solutionUtils.js';
 
 class EvaluationService {
     /**
@@ -37,12 +38,21 @@ class EvaluationService {
             useAdvancedMetrics: true,
             topPlayerPercent: 0.2,
 
+            // Cache settings
+            enableCache: true,
+            maxCacheSize: 10000,
+
             ...adaptiveParameters
         };
         this.customEvaluationFn = customEvaluationFn;
 
         // Cache for composition (set by optimizer)
         this.composition = null;
+
+        // Evaluation cache for performance optimization
+        this.evaluationCache = new Map();
+        this.cacheHits = 0;
+        this.cacheMisses = 0;
     }
 
     /**
@@ -61,6 +71,16 @@ class EvaluationService {
         // Default evaluation
         if (!teams || !Array.isArray(teams) || teams.length === 0) {
             return Infinity;
+        }
+
+        // Check cache if enabled
+        if (this.adaptiveParameters.enableCache) {
+            const hash = hashSolution(teams);
+            if (this.evaluationCache.has(hash)) {
+                this.cacheHits++;
+                return this.evaluationCache.get(hash);
+            }
+            this.cacheMisses++;
         }
 
         // Calculate team strengths using weighted ratings
@@ -114,7 +134,47 @@ class EvaluationService {
             score += advancedScore;
         }
 
+        // Store in cache if enabled
+        if (this.adaptiveParameters.enableCache) {
+            const hash = hashSolution(teams);
+            this.evaluationCache.set(hash, score);
+
+            // Limit cache size to prevent memory issues
+            if (this.evaluationCache.size > this.adaptiveParameters.maxCacheSize) {
+                // Remove oldest entries (first 10% of cache)
+                const entriesToRemove = Math.floor(this.adaptiveParameters.maxCacheSize * 0.1);
+                const iterator = this.evaluationCache.keys();
+                for (let i = 0; i < entriesToRemove; i++) {
+                    const key = iterator.next().value;
+                    this.evaluationCache.delete(key);
+                }
+            }
+        }
+
         return score;
+    }
+
+    /**
+     * Clear evaluation cache
+     */
+    clearCache() {
+        this.evaluationCache.clear();
+        this.cacheHits = 0;
+        this.cacheMisses = 0;
+    }
+
+    /**
+     * Get cache statistics
+     * @returns {Object} Cache statistics
+     */
+    getCacheStats() {
+        const total = this.cacheHits + this.cacheMisses;
+        return {
+            hits: this.cacheHits,
+            misses: this.cacheMisses,
+            size: this.evaluationCache.size,
+            hitRate: total > 0 ? (this.cacheHits / total * 100).toFixed(2) + '%' : '0%'
+        };
     }
 
     /**

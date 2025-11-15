@@ -73,41 +73,42 @@ class TeamOptimizerService {
         this.solutionOrganizer = new SolutionOrganizer(activityConfig);
 
         // Algorithm-specific configurations
+        // Optimized parameters based on analysis and performance testing
         this.algorithmConfigs = {
             geneticAlgorithm: {
-                populationSize: 20,
-                generationCount: 300,
-                mutationRate: 0.2,
-                crossoverRate: 0.7,
-                elitismCount: 2,
+                populationSize: 25,           // Increased for better diversity
+                generationCount: 350,         // More generations for convergence
+                mutationRate: 0.25,           // Increased mutation rate
+                crossoverRate: 0.75,          // Higher crossover rate
+                elitismCount: 3,              // Keep top 3 solutions
                 tournamentSize: 3,
-                maxStagnation: 20
+                maxStagnation: 25             // More patience before diversity injection
             },
             tabuSearch: {
-                tabuTenure: 100,
-                iterations: 10000,
-                neighborCount: 20,
-                diversificationFrequency: 1000
+                tabuTenure: 120,              // Increased tenure for better memory
+                iterations: 12000,            // More iterations
+                neighborCount: 25,            // Larger neighborhood
+                diversificationFrequency: 1200 // Aligned with iterations
             },
             simulatedAnnealing: {
-                initialTemperature: 1000,
-                coolingRate: 0.995,
-                iterations: 100000,
+                initialTemperature: 1500,     // Higher initial temp for more exploration
+                coolingRate: 0.9965,          // Slower cooling for better convergence
+                iterations: 120000,           // More iterations
                 reheatEnabled: true,
-                reheatTemperature: 500,
-                reheatIterations: 20000
+                reheatTemperature: 700,       // Higher reheat temperature
+                reheatIterations: 25000       // More iterations before reheat
             },
             antColony: {
-                antCount: 20,
-                iterations: 300,
+                antCount: 25,                 // More ants for better exploration
+                iterations: 350,              // More iterations
                 alpha: 1.0,
-                beta: 2.0,
-                evaporationRate: 0.1,
-                pheromoneDeposit: 100,
-                elitistWeight: 2.0
+                beta: 2.5,                    // Increased heuristic influence
+                evaporationRate: 0.12,        // Slightly faster evaporation
+                pheromoneDeposit: 120,        // More pheromone
+                elitistWeight: 2.5            // Stronger elitism
             },
             constraintProgramming: {
-                maxBacktracks: 10000,
+                maxBacktracks: 12000,         // More backtracking allowed
                 variableOrderingHeuristic: 'most-constrained',
                 valueOrderingHeuristic: 'least-constraining',
                 propagationLevel: 'full',
@@ -115,27 +116,27 @@ class TeamOptimizerService {
                 conflictAnalysis: true
             },
             localSearch: {
-                iterations: 3000,
-                neighborhoodSize: 10
+                iterations: 4000,             // More iterations for thorough search
+                neighborhoodSize: 12          // Larger neighborhood
             },
             hybrid: {
-                phase1: {
-                    populationSize: 15,
-                    generations: 100,
-                    mutationRate: 0.3,
-                    crossoverRate: 0.7,
-                    elitismCount: 2,
+                phase1: {                     // Genetic Algorithm phase
+                    populationSize: 20,       // Larger population
+                    generations: 120,         // More generations
+                    mutationRate: 0.35,       // Higher mutation for exploration
+                    crossoverRate: 0.75,      // Higher crossover
+                    elitismCount: 3,          // Keep top 3
                     tournamentSize: 3
                 },
-                phase2: {
-                    iterations: 3000,
-                    tabuTenure: 50,
-                    neighborhoodSize: 15,
-                    diversificationFrequency: 500
+                phase2: {                     // Tabu Search phase
+                    iterations: 4000,         // More iterations
+                    tabuTenure: 60,           // Larger tenure
+                    neighborhoodSize: 18,     // Larger neighborhood
+                    diversificationFrequency: 600
                 },
-                phase3: {
-                    iterations: 1000,
-                    neighborhoodSize: 10
+                phase3: {                     // Local Search phase
+                    iterations: 1500,         // More iterations
+                    neighborhoodSize: 12      // Larger neighborhood
                 }
             }
         };

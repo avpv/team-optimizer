@@ -3,7 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams, hashSolution } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
-import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
+import { performIntelligentSwap, getIntelligentSwapProbability } from '../utils/advancedSwapOperations.js';
 import { createRandomSolution } from '../utils/solutionGenerators.js';
 
 /**
@@ -55,9 +55,22 @@ class HybridOptimizer extends IOptimizer {
         } = problemContext;
 
         try {
-            let currentSolution = Array.isArray(initialSolution[0])
-                ? cloneTeams(initialSolution[0])
-                : cloneTeams(initialSolution);
+            // initialSolution can be either a single solution (array of teams)
+            // or an array of solutions (for GA population)
+            // Check if it's an array of teams or array of arrays of teams
+            let currentSolution;
+            if (Array.isArray(initialSolution) && Array.isArray(initialSolution[0])) {
+                // Check if initialSolution[0][0] exists and is an object (player)
+                // If so, initialSolution is a single solution (array of teams)
+                if (initialSolution[0].length > 0 && typeof initialSolution[0][0] === 'object' && initialSolution[0][0].id) {
+                    currentSolution = cloneTeams(initialSolution);
+                } else {
+                    // Otherwise, it's an array of solutions, take the first one
+                    currentSolution = cloneTeams(initialSolution[0]);
+                }
+            } else {
+                currentSolution = cloneTeams(initialSolution);
+            }
 
             let bestSolution = cloneTeams(currentSolution);
             let bestScore = evaluateFn(bestSolution);
@@ -179,11 +192,19 @@ class HybridOptimizer extends IOptimizer {
             }
 
             // Mutation with intelligent swaps
+            const iterationProgress = gen / config.generations;
+            const intelligentSwapProb = getIntelligentSwapProbability('hybrid', {
+                iterationProgress,
+                phase: 'exploration'
+            });
+
             for (let i = config.elitismCount; i < newPopulation.length; i++) {
                 if (Math.random() < config.mutationRate) {
-                    // Use intelligent swap 60% of time, universal swap 40%
-                    if (Math.random() < 0.6) {
-                        performIntelligentSwap(newPopulation[i], positions, composition, this.adaptiveParams);
+                    if (Math.random() < intelligentSwapProb) {
+                        performIntelligentSwap(newPopulation[i], positions, composition, this.adaptiveParams, {
+                            phase: 'exploration',
+                            iterationProgress
+                        });
                     } else {
                         performUniversalSwap(newPopulation[i], positions, this.adaptiveParams);
                     }
@@ -224,13 +245,26 @@ class HybridOptimizer extends IOptimizer {
         for (let iter = 0; iter < config.iterations; iter++) {
             this.stats.phase2Iterations++;
 
+            const iterationProgress = iter / config.iterations;
+            const intelligentSwapProb = getIntelligentSwapProbability('hybrid', {
+                iterationProgress,
+                phase: 'exploitation'
+            });
+
             // Generate neighborhood using intelligent swaps
             const neighbors = [];
             for (let n = 0; n < config.neighborhoodSize; n++) {
                 const neighbor = cloneTeams(currentSolution);
 
-                // Use intelligent swaps
-                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+                // Use intelligent swaps with high probability in exploitation phase
+                if (Math.random() < intelligentSwapProb) {
+                    performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams, {
+                        phase: 'exploitation',
+                        iterationProgress
+                    });
+                } else {
+                    performUniversalSwap(neighbor, positions, this.adaptiveParams);
+                }
 
                 const hash = hashSolution(neighbor);
                 if (!tabuList.has(hash)) {
@@ -305,17 +339,28 @@ class HybridOptimizer extends IOptimizer {
         let currentSolution = cloneTeams(initialSolution);
         let currentScore = initialScore;
 
+        const intelligentSwapProb = getIntelligentSwapProbability('local_search', {});
+
         for (let iter = 0; iter < config.iterations; iter++) {
             this.stats.phase3Iterations++;
 
             let improved = false;
 
+            const iterationProgress = iter / config.iterations;
+
             // Try multiple neighbors
             for (let n = 0; n < config.neighborhoodSize; n++) {
                 const neighbor = cloneTeams(currentSolution);
 
-                // Use intelligent swaps for final polishing
-                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+                // Use very high intelligent swap rate for final polishing
+                if (Math.random() < intelligentSwapProb) {
+                    performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams, {
+                        phase: 'exploitation',
+                        iterationProgress
+                    });
+                } else {
+                    performUniversalSwap(neighbor, positions, this.adaptiveParams);
+                }
 
                 const neighborScore = evaluateFn(neighbor);
 
