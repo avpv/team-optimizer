@@ -3,6 +3,7 @@
 import IOptimizer from '../core/IOptimizer.js';
 import { cloneTeams, hashSolution } from '../utils/solutionUtils.js';
 import { performUniversalSwap } from '../utils/swapOperations.js';
+import { performIntelligentSwap } from '../utils/advancedSwapOperations.js';
 
 /**
  * Tabu Search Optimizer
@@ -26,6 +27,7 @@ class TabuSearchOptimizer extends IOptimizer {
     async solve(problemContext) {
         const {
             initialSolution,
+            composition,
             positions,
             evaluateFn
         } = problemContext;
@@ -40,7 +42,7 @@ class TabuSearchOptimizer extends IOptimizer {
 
         for (let iter = 0; iter < this.config.iterations; iter++) {
             this.stats.iterations = iter + 1;
-            const neighbors = this.generateNeighborhood(current, positions, this.config.neighborCount);
+            const neighbors = this.generateNeighborhood(current, composition, positions, this.config.neighborCount);
             
             let bestNeighbor = null;
             let bestNeighborScore = Infinity;
@@ -104,10 +106,15 @@ class TabuSearchOptimizer extends IOptimizer {
             // Periodic diversification to escape local minima
             if (iter > 0 && iter % this.config.diversificationFrequency === 0) {
                 current = cloneTeams(best);
-                // Perform multiple random swaps for strong diversification
+                // Perform multiple swaps for strong diversification
+                // Mix of universal and intelligent swaps
                 const swapCount = Math.max(3, Math.floor(current[0].length / 2));
                 for (let i = 0; i < swapCount; i++) {
-                    performUniversalSwap(current, positions, this.adaptiveParams);
+                    if (Math.random() < 0.5) {
+                        performIntelligentSwap(current, positions, composition, this.adaptiveParams);
+                    } else {
+                        performUniversalSwap(current, positions, this.adaptiveParams);
+                    }
                 }
                 // Partially clear tabu structures (keep 50%)
                 const keepCount = Math.floor(this.config.tabuTenure / 2);
@@ -117,12 +124,17 @@ class TabuSearchOptimizer extends IOptimizer {
                 }
                 iterationSinceImprovement = 0;
             }
-            
+
             // Restart on long stagnation
             if (iterationSinceImprovement > 500) {
                 current = cloneTeams(best);
                 for (let i = 0; i < 5; i++) {
-                    performUniversalSwap(current, positions, this.adaptiveParams);
+                    // Use more intelligent swaps for restart
+                    if (Math.random() < 0.6) {
+                        performIntelligentSwap(current, positions, composition, this.adaptiveParams);
+                    } else {
+                        performUniversalSwap(current, positions, this.adaptiveParams);
+                    }
                 }
                 iterationSinceImprovement = 0;
             }
@@ -140,14 +152,20 @@ class TabuSearchOptimizer extends IOptimizer {
     /**
      * Generate neighborhood of solutions
      * @param {Array} teams - Current solution
+     * @param {Object} composition - Position composition
      * @param {Array} positions - Available positions
      * @param {number} size - Neighborhood size
      * @returns {Array} Array of neighbor solutions
      */
-    generateNeighborhood(teams, positions, size) {
+    generateNeighborhood(teams, composition, positions, size) {
         return Array.from({ length: size }, () => {
             const neighbor = cloneTeams(teams);
-            performUniversalSwap(neighbor, positions, this.adaptiveParams);
+            // Use intelligent swaps 80% of time for better neighborhood quality
+            if (Math.random() < 0.8) {
+                performIntelligentSwap(neighbor, positions, composition, this.adaptiveParams);
+            } else {
+                performUniversalSwap(neighbor, positions, this.adaptiveParams);
+            }
             return neighbor;
         });
     }
