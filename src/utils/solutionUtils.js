@@ -193,6 +193,28 @@ export function validateNoDuplicatePlayers(teams) {
 }
 
 /**
+ * Fast check if teams contain duplicate players (for use in hot paths)
+ * @param {Array} teams - Array of teams
+ * @returns {boolean} True if duplicates found
+ */
+export function hasDuplicatePlayers(teams) {
+    const seenIds = new Set();
+
+    for (const team of teams) {
+        for (const player of team) {
+            if (player.id && seenIds.has(player.id)) {
+                return true; // Duplicate found
+            }
+            if (player.id) {
+                seenIds.add(player.id);
+            }
+        }
+    }
+
+    return false; // No duplicates
+}
+
+/**
  * Remove duplicate players from teams (keep only first occurrence)
  * If a player appears in multiple teams, keep them in the first team and remove from others
  * @param {Array} teams - Array of teams
