@@ -1,10 +1,11 @@
 /**
  * SolutionOrganizer - Handles organization and sorting of solutions
- * Groups players, sorts teams, and prepares final results
+ * Works with RESOLVED teams (after PlayerPool.resolveTeams)
+ * In slot-based architecture, duplicate players are impossible by design
  */
 
 import { calculateSimpleTeamStrength } from '../utils/evaluationUtils.js';
-import { sortTeamByPosition, getUnusedPlayers, validateNoDuplicatePlayers, removeDuplicatePlayers } from '../utils/solutionUtils.js';
+import { sortTeamByPosition, getUnusedPlayers } from '../utils/solutionUtils.js';
 
 class SolutionOrganizer {
     /**
@@ -12,34 +13,6 @@ class SolutionOrganizer {
      */
     constructor(activityConfig) {
         this.activityConfig = activityConfig;
-    }
-
-    /**
-     * Group players by their positions
-     * Each player appears once for each position they can play
-     * @param {Array} players - All players
-     * @returns {Object} Players grouped by position with assigned position and rating
-     */
-    groupByPosition(players) {
-        const grouped = {};
-
-        players.forEach(player => {
-            if (player.positions && Array.isArray(player.positions)) {
-                player.positions.forEach(position => {
-                    if (!grouped[position]) {
-                        grouped[position] = [];
-                    }
-
-                    grouped[position].push({
-                        ...player,
-                        assignedPosition: position,
-                        positionRating: player.ratings?.[position] || 1500
-                    });
-                });
-            }
-        });
-
-        return grouped;
     }
 
     /**
@@ -69,104 +42,26 @@ class SolutionOrganizer {
 
     /**
      * Prepare final solution with sorted teams and players
-     * @param {Array} teams - Raw solution teams
+     * In slot-based architecture, duplicate players are impossible by design.
+     * This method only handles sorting and organization.
+     * @param {Array} teams - Resolved teams (after PlayerPool.resolveTeams)
      * @param {Array} allPlayers - All available players
      * @returns {Object} Organized solution
      */
     prepareFinalSolution(teams, allPlayers) {
-        // CRITICAL FIX: Check for and remove duplicate players before proceeding
-        const duplicateValidation = validateNoDuplicatePlayers(teams);
+        // Sort teams by strength (strongest first)
+        this.sortTeamsByStrength(teams);
 
-        let finalTeams = teams;
-        let duplicateWarnings = [];
-        let autoFillPerformed = false;
+        // Sort players within teams by position order
+        this.sortPlayersInTeams(teams);
 
-        if (!duplicateValidation.isValid) {
-            console.warn('⚠️  Duplicate players detected in teams!');
-            duplicateValidation.errors.forEach(error => {
-                console.warn(`  - ${error}`);
-            });
-
-            // Remove duplicates (keep first occurrence)
-            const cleanupResult = removeDuplicatePlayers(teams);
-            finalTeams = cleanupResult.cleanedTeams;
-
-            console.warn(`✓ Removed ${cleanupResult.removedCount} duplicate player(s)`);
-            cleanupResult.details.forEach(detail => {
-                const message = `  - Removed ${detail.playerName || detail.playerId} (${detail.position}) from Team ${detail.removedFromTeam + 1}`;
-                console.warn(message);
-            });
-
-            duplicateWarnings = duplicateValidation.errors;
-
-            // Try to refill incomplete teams
-            const unusedPlayers = getUnusedPlayers(finalTeams, allPlayers);
-            if (unusedPlayers.length > 0) {
-                autoFillPerformed = this.tryRefillTeams(finalTeams, unusedPlayers, cleanupResult.details);
-            }
-        }
-
-        // Sort teams by strength
-        this.sortTeamsByStrength(finalTeams);
-
-        // Sort players within teams
-        this.sortPlayersInTeams(finalTeams);
-
-        // Get unused players
-        const unusedPlayers = getUnusedPlayers(finalTeams, allPlayers);
+        // Get unused players (players not assigned to any team)
+        const unusedPlayers = getUnusedPlayers(teams, allPlayers);
 
         return {
-            teams: finalTeams,
-            unusedPlayers,
-            duplicateWarnings: duplicateWarnings.length > 0 ? duplicateWarnings : undefined,
-            autoFillPerformed
+            teams,
+            unusedPlayers
         };
-    }
-
-    /**
-     * Try to refill teams with missing players from unused pool
-     * @param {Array} teams - Teams with missing players
-     * @param {Array} unusedPlayers - Pool of unused players
-     * @param {Array} removedDetails - Details of removed players
-     * @returns {boolean} True if any players were added
-     */
-    tryRefillTeams(teams, unusedPlayers, removedDetails) {
-        let addedCount = 0;
-
-        // Create a map of removed positions per team
-        const teamNeedsMap = new Map();
-        removedDetails.forEach(detail => {
-            if (!teamNeedsMap.has(detail.removedFromTeam)) {
-                teamNeedsMap.set(detail.removedFromTeam, []);
-            }
-            teamNeedsMap.get(detail.removedFromTeam).push(detail.position);
-        });
-
-        // Try to fill missing positions
-        teamNeedsMap.forEach((positions, teamIdx) => {
-            positions.forEach(neededPosition => {
-                // Find a player from unused pool who can play this position
-                const playerIndex = unusedPlayers.findIndex(p =>
-                    p.positions && p.positions.includes(neededPosition)
-                );
-
-                if (playerIndex !== -1) {
-                    const player = unusedPlayers[playerIndex];
-                    // Create a new player object with assigned position
-                    teams[teamIdx].push({
-                        ...player,
-                        assignedPosition: neededPosition,
-                        positionRating: player.ratings?.[neededPosition] || 1500
-                    });
-                    // Remove from unused pool
-                    unusedPlayers.splice(playerIndex, 1);
-                    addedCount++;
-                    console.warn(`  ✓ Auto-filled Team ${teamIdx + 1} with ${player.name} (${neededPosition})`);
-                }
-            });
-        });
-
-        return addedCount > 0;
     }
 
     /**
