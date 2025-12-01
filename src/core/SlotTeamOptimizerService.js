@@ -251,8 +251,8 @@ class SlotTeamOptimizerService {
             }
 
             algorithmPromises.push(
-                Promise.all(tabuResults).then(results => {
-                    const { evaluateSlotSolution } = require('../utils/slotEvaluationUtils.js');
+                Promise.all(tabuResults).then(async results => {
+                    const { evaluateSlotSolution } = await import('../utils/slotEvaluationUtils.js');
                     const scores = results.map(r =>
                         evaluateSlotSolution(r, problemContext.playerPool, problemContext.positionWeights)
                     );

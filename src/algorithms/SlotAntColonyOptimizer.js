@@ -148,7 +148,7 @@ class SlotAntColonyOptimizer extends IOptimizer {
         const usedIds = new Set();
 
         // Smart position ordering: fill scarce positions first
-        const positionPriority = ['MB', 'S', 'L', 'OPP', 'OH'];
+        const positionPriority = Object.keys(composition);
         const positionOrder = positionPriority
             .map(pos => [pos, composition[pos]])
             .filter(([, count]) => count && count > 0);
