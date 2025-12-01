@@ -1,10 +1,14 @@
 /**
  * Advanced swap operations for team optimization
  * Provides intelligent, targeted swap strategies beyond basic random swaps
+ *
+ * DUPLICATE PREVENTION: All swap operations validate that no duplicate players
+ * are created. If a swap would create a duplicate, it is automatically reverted.
  */
 
 import { calculateTeamStrength, getPlayerRating } from './evaluationUtils.js';
 import { calculateFairnessMetric, calculateConsistencyMetric } from './advancedMetrics.js';
+import { hasDuplicatePlayers } from './solutionUtils.js';
 
 /**
  * Perform a fairness-driven swap - balances distribution of top players
@@ -79,9 +83,19 @@ export function performFairnessSwap(teams, positions, adaptiveParams) {
             const idx2 = poorestTeam.findIndex(p => p.id === swapPartner.id);
 
             if (idx1 !== -1 && idx2 !== -1) {
-                [teams[richestTeamIdx][idx1], teams[poorestTeamIdx][idx2]] =
-                    [teams[poorestTeamIdx][idx2], teams[richestTeamIdx][idx1]];
-                return true;
+                // Perform swap
+                const p1 = teams[richestTeamIdx][idx1];
+                const p2 = teams[poorestTeamIdx][idx2];
+
+                [teams[richestTeamIdx][idx1], teams[poorestTeamIdx][idx2]] = [p2, p1];
+
+                // CRITICAL: Validate no duplicates were created
+                if (hasDuplicatePlayers(teams)) {
+                    // Revert swap
+                    [teams[richestTeamIdx][idx1], teams[poorestTeamIdx][idx2]] = [p1, p2];
+                } else {
+                    return true; // Successful swap
+                }
             }
         }
     }
@@ -151,8 +165,18 @@ export function performConsistencySwap(teams, composition, adaptiveParams) {
     const idx2 = teams[weakestTeamIdx].findIndex(p => p.id === weakPlayer.id);
 
     if (idx1 !== -1 && idx2 !== -1) {
-        [teams[strongestTeamIdx][idx1], teams[weakestTeamIdx][idx2]] =
-            [teams[weakestTeamIdx][idx2], teams[strongestTeamIdx][idx1]];
+        // Perform swap
+        const p1 = teams[strongestTeamIdx][idx1];
+        const p2 = teams[weakestTeamIdx][idx2];
+
+        [teams[strongestTeamIdx][idx1], teams[weakestTeamIdx][idx2]] = [p2, p1];
+
+        // CRITICAL: Validate no duplicates were created
+        if (hasDuplicatePlayers(teams)) {
+            // Revert swap
+            [teams[strongestTeamIdx][idx1], teams[weakestTeamIdx][idx2]] = [p1, p2];
+            return false;
+        }
         return true;
     }
 
@@ -204,10 +228,24 @@ export function performChainSwap(teams, positions, adaptiveParams) {
     const player1 = teams[teamIndices[1]][indices[1]];
     const player2 = teams[teamIndices[2]][indices[2]];
 
+    // Check if any players are the same (would create issues)
+    if (player0.id === player1.id || player1.id === player2.id || player0.id === player2.id) {
+        return false; // Cannot swap same players
+    }
+
     // Perform circular swap
     teams[teamIndices[0]][indices[0]] = player2;
     teams[teamIndices[1]][indices[1]] = player0;
     teams[teamIndices[2]][indices[2]] = player1;
+
+    // CRITICAL: Validate no duplicates were created
+    if (hasDuplicatePlayers(teams)) {
+        // Revert circular swap
+        teams[teamIndices[0]][indices[0]] = player0;
+        teams[teamIndices[1]][indices[1]] = player1;
+        teams[teamIndices[2]][indices[2]] = player2;
+        return false;
+    }
 
     return true;
 }
@@ -291,8 +329,18 @@ export function performWeaknessTargetedSwap(teams, composition, adaptiveParams) 
     const idx2 = teams[strongestTeam.teamIdx].findIndex(p => p.id === strongPlayer.id);
 
     if (idx1 !== -1 && idx2 !== -1) {
-        [teams[weakestTeam.teamIdx][idx1], teams[strongestTeam.teamIdx][idx2]] =
-            [teams[strongestTeam.teamIdx][idx2], teams[weakestTeam.teamIdx][idx1]];
+        // Perform swap
+        const p1 = teams[weakestTeam.teamIdx][idx1];
+        const p2 = teams[strongestTeam.teamIdx][idx2];
+
+        [teams[weakestTeam.teamIdx][idx1], teams[strongestTeam.teamIdx][idx2]] = [p2, p1];
+
+        // CRITICAL: Validate no duplicates were created
+        if (hasDuplicatePlayers(teams)) {
+            // Revert swap
+            [teams[weakestTeam.teamIdx][idx1], teams[strongestTeam.teamIdx][idx2]] = [p1, p2];
+            return false;
+        }
         return true;
     }
 
@@ -343,6 +391,12 @@ export function performBalancedMultiSwap(teams, positions, adaptiveParams) {
     const player2Pos1 = team2Pos1Players[Math.floor(Math.random() * team2Pos1Players.length)];
     const player2Pos2 = team2Pos2Players[Math.floor(Math.random() * team2Pos2Players.length)];
 
+    // CRITICAL FIX: Ensure we don't select the same player twice (multi-position players)
+    if (player1Pos1.id === player1Pos2.id || player2Pos1.id === player2Pos2.id) {
+        // Same player selected for different positions - abort swap to avoid duplicates
+        return false;
+    }
+
     // Find indices
     const idx1Pos1 = teams[t1].findIndex(p => p.id === player1Pos1.id);
     const idx1Pos2 = teams[t1].findIndex(p => p.id === player1Pos2.id);
@@ -353,9 +407,23 @@ export function performBalancedMultiSwap(teams, positions, adaptiveParams) {
         return false;
     }
 
+    // Save players before swap
+    const p1Pos1 = teams[t1][idx1Pos1];
+    const p1Pos2 = teams[t1][idx1Pos2];
+    const p2Pos1 = teams[t2][idx2Pos1];
+    const p2Pos2 = teams[t2][idx2Pos2];
+
     // Perform double swap: t1.pos1 <-> t2.pos1, t1.pos2 <-> t2.pos2
-    [teams[t1][idx1Pos1], teams[t2][idx2Pos1]] = [teams[t2][idx2Pos1], teams[t1][idx1Pos1]];
-    [teams[t1][idx1Pos2], teams[t2][idx2Pos2]] = [teams[t2][idx2Pos2], teams[t1][idx1Pos2]];
+    [teams[t1][idx1Pos1], teams[t2][idx2Pos1]] = [p2Pos1, p1Pos1];
+    [teams[t1][idx1Pos2], teams[t2][idx2Pos2]] = [p2Pos2, p1Pos2];
+
+    // CRITICAL: Validate no duplicates were created
+    if (hasDuplicatePlayers(teams)) {
+        // Revert both swaps
+        [teams[t1][idx1Pos1], teams[t2][idx2Pos1]] = [p1Pos1, p2Pos1];
+        [teams[t1][idx1Pos2], teams[t2][idx2Pos2]] = [p1Pos2, p2Pos2];
+        return false;
+    }
 
     return true;
 }

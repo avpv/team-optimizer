@@ -1,6 +1,7 @@
 // src/services/optimizer/utils/swapOperations.js
 
 import { calculateTeamStrength } from './evaluationUtils.js';
+import { hasDuplicatePlayers } from './solutionUtils.js';
 
 /**
  * Various swap operations for team optimization
@@ -11,8 +12,9 @@ import { calculateTeamStrength } from './evaluationUtils.js';
  * - performCrossTeamPositionSwap: Swaps players at the SAME position across teams
  * - performPositionSwap: Swaps players within one team (always safe)
  *
- * For additional safety, use validateTeamComposition() or validateAllTeamsComposition()
- * from solutionUtils.js to verify composition after swaps.
+ * DUPLICATE PREVENTION: All cross-team swap operations now validate that no
+ * duplicate players are created. If a swap would create a duplicate, it is
+ * automatically reverted.
  */
 
 /**
@@ -22,22 +24,37 @@ import { calculateTeamStrength } from './evaluationUtils.js';
  */
 export function performSwap(teams, positions) {
     if (teams.length < 2) return;
-    
+
     const t1 = Math.floor(Math.random() * teams.length);
     let t2 = Math.floor(Math.random() * teams.length);
     while (t2 === t1 && teams.length > 1) {
         t2 = Math.floor(Math.random() * teams.length);
     }
-    
+
     const pos = positions[Math.floor(Math.random() * positions.length)];
     const p1 = teams[t1].filter(p => p.assignedPosition === pos);
     const p2 = teams[t2].filter(p => p.assignedPosition === pos);
-    
+
     if (p1.length > 0 && p2.length > 0) {
         const idx1 = teams[t1].findIndex(p => p.id === p1[Math.floor(Math.random() * p1.length)].id);
         const idx2 = teams[t2].findIndex(p => p.id === p2[Math.floor(Math.random() * p2.length)].id);
         if (idx1 !== -1 && idx2 !== -1) {
-            [teams[t1][idx1], teams[t2][idx2]] = [teams[t2][idx2], teams[t1][idx1]];
+            // Perform swap
+            const player1 = teams[t1][idx1];
+            const player2 = teams[t2][idx2];
+
+            // Check if this would create duplicate (same player ID in one team)
+            if (player1.id === player2.id) {
+                return; // Cannot swap same player
+            }
+
+            [teams[t1][idx1], teams[t2][idx2]] = [player2, player1];
+
+            // CRITICAL: Validate no duplicates were created
+            if (hasDuplicatePlayers(teams)) {
+                // Revert swap
+                [teams[t1][idx1], teams[t2][idx2]] = [player1, player2];
+            }
         }
     }
 }
@@ -91,8 +108,18 @@ export function performAdaptiveSwap(teams, positions, adaptiveParams) {
 
                 // Only perform swap if it improves balance
                 if (newBalance < currentBalance) {
-                    [teams[strongestIdx][idx1], teams[weakestIdx][idx2]] = [teams[weakestIdx][idx2], teams[strongestIdx][idx1]];
-                    return;
+                    const player1 = teams[strongestIdx][idx1];
+                    const player2 = teams[weakestIdx][idx2];
+
+                    [teams[strongestIdx][idx1], teams[weakestIdx][idx2]] = [player2, player1];
+
+                    // CRITICAL: Validate no duplicates were created
+                    if (hasDuplicatePlayers(teams)) {
+                        // Revert swap
+                        [teams[strongestIdx][idx1], teams[weakestIdx][idx2]] = [player1, player2];
+                    } else {
+                        return; // Successful swap
+                    }
                 }
             }
         }
@@ -177,8 +204,22 @@ export function performCrossTeamPositionSwap(teams) {
     const idx2 = teams[t2].findIndex(p => p.id === player2.id);
 
     if (idx1 !== -1 && idx2 !== -1) {
-        // Swap players at the same position - this maintains team composition
-        [teams[t1][idx1], teams[t2][idx2]] = [teams[t2][idx2], teams[t1][idx1]];
+        // Check if this would create duplicate (same player ID)
+        if (player1.id === player2.id) {
+            return; // Cannot swap same player
+        }
+
+        // Perform swap
+        const p1 = teams[t1][idx1];
+        const p2 = teams[t2][idx2];
+
+        [teams[t1][idx1], teams[t2][idx2]] = [p2, p1];
+
+        // CRITICAL: Validate no duplicates were created
+        if (hasDuplicatePlayers(teams)) {
+            // Revert swap
+            [teams[t1][idx1], teams[t2][idx2]] = [p1, p2];
+        }
     }
 }
 
