@@ -227,19 +227,26 @@ class GeneticAlgorithmOptimizer extends IOptimizer {
         // Fill remaining with players from parent2
         const remainingPlayers = parent2.flat().filter(p => !usedIds.has(p.id));
         remainingPlayers.forEach(player => {
+            // CRITICAL FIX: Check again if player was already added (multi-position players)
+            if (usedIds.has(player.id)) {
+                return; // Skip if already used
+            }
+
             let placed = false;
             for (let i = 0; i < child.length; i++) {
                 const needsPos = (child[i].filter(p => p.assignedPosition === player.assignedPosition).length) < (composition[player.assignedPosition] || 0);
                 if (needsPos) {
                     child[i].push({ ...player });
+                    usedIds.add(player.id); // Add to usedIds immediately
                     placed = true;
                     break;
                 }
             }
             if (!placed) {
-                const smallestTeam = child.reduce((smallest, current) => 
+                const smallestTeam = child.reduce((smallest, current) =>
                     current.length < smallest.length ? current : smallest, child[0]);
                 smallestTeam.push({ ...player });
+                usedIds.add(player.id); // Add to usedIds immediately
             }
         });
         return child;

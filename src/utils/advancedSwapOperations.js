@@ -343,6 +343,12 @@ export function performBalancedMultiSwap(teams, positions, adaptiveParams) {
     const player2Pos1 = team2Pos1Players[Math.floor(Math.random() * team2Pos1Players.length)];
     const player2Pos2 = team2Pos2Players[Math.floor(Math.random() * team2Pos2Players.length)];
 
+    // CRITICAL FIX: Ensure we don't select the same player twice (multi-position players)
+    if (player1Pos1.id === player1Pos2.id || player2Pos1.id === player2Pos2.id) {
+        // Same player selected for different positions - abort swap to avoid duplicates
+        return false;
+    }
+
     // Find indices
     const idx1Pos1 = teams[t1].findIndex(p => p.id === player1Pos1.id);
     const idx1Pos2 = teams[t1].findIndex(p => p.id === player1Pos2.id);

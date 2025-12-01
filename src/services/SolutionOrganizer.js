@@ -4,7 +4,7 @@
  */
 
 import { calculateSimpleTeamStrength } from '../utils/evaluationUtils.js';
-import { sortTeamByPosition, getUnusedPlayers } from '../utils/solutionUtils.js';
+import { sortTeamByPosition, getUnusedPlayers, validateNoDuplicatePlayers, removeDuplicatePlayers } from '../utils/solutionUtils.js';
 
 class SolutionOrganizer {
     /**
@@ -74,18 +74,44 @@ class SolutionOrganizer {
      * @returns {Object} Organized solution
      */
     prepareFinalSolution(teams, allPlayers) {
+        // CRITICAL FIX: Check for and remove duplicate players before proceeding
+        const duplicateValidation = validateNoDuplicatePlayers(teams);
+
+        let finalTeams = teams;
+        let duplicateWarnings = [];
+
+        if (!duplicateValidation.isValid) {
+            console.warn('⚠️  Duplicate players detected in teams!');
+            duplicateValidation.errors.forEach(error => {
+                console.warn(`  - ${error}`);
+            });
+
+            // Remove duplicates (keep first occurrence)
+            const cleanupResult = removeDuplicatePlayers(teams);
+            finalTeams = cleanupResult.cleanedTeams;
+
+            console.warn(`✓ Removed ${cleanupResult.removedCount} duplicate player(s)`);
+            cleanupResult.details.forEach(detail => {
+                const message = `  - Removed ${detail.playerName || detail.playerId} (${detail.position}) from Team ${detail.removedFromTeam + 1}`;
+                console.warn(message);
+            });
+
+            duplicateWarnings = duplicateValidation.errors;
+        }
+
         // Sort teams by strength
-        this.sortTeamsByStrength(teams);
+        this.sortTeamsByStrength(finalTeams);
 
         // Sort players within teams
-        this.sortPlayersInTeams(teams);
+        this.sortPlayersInTeams(finalTeams);
 
         // Get unused players
-        const unusedPlayers = getUnusedPlayers(teams, allPlayers);
+        const unusedPlayers = getUnusedPlayers(finalTeams, allPlayers);
 
         return {
-            teams,
-            unusedPlayers
+            teams: finalTeams,
+            unusedPlayers,
+            duplicateWarnings: duplicateWarnings.length > 0 ? duplicateWarnings : undefined
         };
     }
 

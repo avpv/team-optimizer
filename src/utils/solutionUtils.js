@@ -146,3 +146,95 @@ export function validatePlayerPosition(player) {
     // If no positions array, assume player can play at assigned position
     return true;
 }
+
+/**
+ * Validate that no player appears in multiple teams (check for duplicate player IDs)
+ * @param {Array} teams - Array of teams to validate
+ * @returns {Object} Validation result { isValid: boolean, errors: Array, duplicates: Array }
+ */
+export function validateNoDuplicatePlayers(teams) {
+    const errors = [];
+    const duplicates = [];
+    const playerIdToTeams = new Map(); // Map of player ID to array of team indices
+
+    // Track which teams each player appears in
+    teams.forEach((team, teamIdx) => {
+        team.forEach(player => {
+            if (!player.id) {
+                errors.push(`Player without ID found in team ${teamIdx}`);
+                return;
+            }
+
+            if (!playerIdToTeams.has(player.id)) {
+                playerIdToTeams.set(player.id, []);
+            }
+            playerIdToTeams.get(player.id).push(teamIdx);
+        });
+    });
+
+    // Check for duplicates (players appearing in more than one team)
+    playerIdToTeams.forEach((teamIndices, playerId) => {
+        if (teamIndices.length > 1) {
+            const teamNumbers = teamIndices.map(idx => idx + 1).join(', ');
+            errors.push(`Player ${playerId} appears in multiple teams: ${teamNumbers}`);
+            duplicates.push({
+                playerId,
+                teamIndices,
+                count: teamIndices.length
+            });
+        }
+    });
+
+    return {
+        isValid: errors.length === 0,
+        errors,
+        duplicates
+    };
+}
+
+/**
+ * Remove duplicate players from teams (keep only first occurrence)
+ * If a player appears in multiple teams, keep them in the first team and remove from others
+ * @param {Array} teams - Array of teams
+ * @returns {Object} { cleanedTeams: Array, removedCount: number, details: Array }
+ */
+export function removeDuplicatePlayers(teams) {
+    const seenPlayerIds = new Set();
+    const removedCount = { total: 0 };
+    const details = [];
+
+    const cleanedTeams = teams.map((team, teamIdx) => {
+        const cleanedTeam = [];
+
+        team.forEach(player => {
+            if (!player.id) {
+                // Keep players without ID (shouldn't happen, but safe fallback)
+                cleanedTeam.push(player);
+                return;
+            }
+
+            if (seenPlayerIds.has(player.id)) {
+                // Duplicate found - skip this player
+                removedCount.total++;
+                details.push({
+                    playerId: player.id,
+                    playerName: player.name,
+                    removedFromTeam: teamIdx,
+                    position: player.assignedPosition
+                });
+            } else {
+                // First occurrence - keep it
+                seenPlayerIds.add(player.id);
+                cleanedTeam.push(player);
+            }
+        });
+
+        return cleanedTeam;
+    });
+
+    return {
+        cleanedTeams,
+        removedCount: removedCount.total,
+        details
+    };
+}
