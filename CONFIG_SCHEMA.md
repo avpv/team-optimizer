@@ -60,9 +60,9 @@ defaultComposition: {
     OPP: 1,  // 1 Opposite
     OH: 2,   // 2 Outside Hitters
     MB: 2,   // 2 Middle Blockers
-    L: 1     // 1 Libero
+    L: 0     // 1 Libero
 }
-// Total: 7 players per team
+// Total: 6 players per team
 ```
 
 ### 5. `positionWeights` (object)
