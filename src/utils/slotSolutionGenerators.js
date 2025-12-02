@@ -158,7 +158,7 @@ export function createGreedySlotSolution(composition, teamCount, playerPool, ran
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = ['MB', 'S', 'L', 'OPP', 'OH'];
+    const positionPriority = Object.keys(composition);
     let positionOrder = positionPriority
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
@@ -209,7 +209,7 @@ export function createBalancedSlotSolution(composition, teamCount, playerPool, r
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = ['MB', 'S', 'L', 'OPP', 'OH'];
+    const positionPriority = Object.keys(composition);
     let positionOrder = positionPriority
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
@@ -263,7 +263,7 @@ export function createSnakeDraftSlotSolution(composition, teamCount, playerPool,
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = ['MB', 'S', 'L', 'OPP', 'OH'];
+    const positionPriority = Object.keys(composition);
     let positionOrder = positionPriority
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
@@ -330,7 +330,7 @@ export function createRandomSlotSolution(composition, teamCount, playerPool) {
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = ['MB', 'S', 'L', 'OPP', 'OH'];
+    const positionPriority = Object.keys(composition);
     const positionOrder = positionPriority
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
