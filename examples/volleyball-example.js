@@ -40,18 +40,10 @@ const players = [
 ];
 
 async function optimizeVolleyballTeams() {
-    console.log('=== Volleyball Team Optimizer ===\n');
-
     // Create optimizer with volleyball configuration
     const optimizer = new TeamOptimizerService(volleyballConfig);
 
     try {
-        console.log('Configuration:');
-        console.log(`  Sport: ${volleyballConfig.name}`);
-        console.log(`  Players: ${players.length}`);
-        console.log(`  Teams to create: 2`);
-        console.log(`  Composition: ${JSON.stringify(volleyballConfig.defaultComposition)}\n`);
-
         // Run optimization
         const result = await optimizer.optimize(
             volleyballConfig.defaultComposition,
@@ -59,21 +51,9 @@ async function optimizeVolleyballTeams() {
             players
         );
 
-        console.log('✅ Optimization Complete!\n');
-
         // Results summary
-        console.log('=== Results Summary ===');
-        console.log(`Algorithm: ${result.algorithm}`);
-        console.log(`Team balance difference: ${result.balance.difference.toFixed(2)} points`);
-        console.log(`Standard deviation: ${result.balance.standardDeviation.toFixed(2)}`);
-        console.log(`Average team strength: ${result.balance.average.toFixed(2)}\n`);
-
         // Display teams
         result.teams.forEach((team, idx) => {
-            console.log(`\n=== Team ${idx + 1} ===`);
-            console.log(`Overall Strength: ${result.balance.teamStrengths[idx].toFixed(2)}`);
-            console.log('\nRoster:');
-
             // Group by position for better display
             const positionGroups = {};
             team.forEach(player => {
@@ -88,9 +68,7 @@ async function optimizeVolleyballTeams() {
             volleyballConfig.positionOrder.forEach(position => {
                 if (positionGroups[position]) {
                     const fullName = volleyballConfig.positions[position];
-                    console.log(`\n  ${fullName}s (${position}):`);
                     positionGroups[position].forEach(player => {
-                        console.log(`    - ${player.name} (rating: ${player.positionRating})`);
                     });
                 }
             });
@@ -98,31 +76,22 @@ async function optimizeVolleyballTeams() {
 
         // Display unused players
         if (result.unusedPlayers.length > 0) {
-            console.log('\n=== Bench Players ===');
             result.unusedPlayers.forEach(player => {
                 const positions = player.positions.join('/');
                 const ratings = player.positions.map(pos => player.ratings[pos]).join('/');
-                console.log(`  - ${player.name} (${positions}): ${ratings}`);
             });
         } else {
-            console.log('\n✅ All players assigned to teams');
         }
 
         // Display validation info
-        console.log('\n=== Validation ===');
         if (result.validation.warnings && result.validation.warnings.length > 0) {
-            console.log('Warnings:');
             result.validation.warnings.forEach(warning => {
-                console.log(`  ⚠️  ${warning.message}`);
             });
         } else {
-            console.log('✅ No issues detected');
         }
 
     } catch (error) {
-        console.error('\n❌ Error:', error.message);
         if (error.stack) {
-            console.error(error.stack);
         }
     }
 }

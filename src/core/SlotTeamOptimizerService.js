@@ -42,9 +42,6 @@ class SlotTeamOptimizerService {
         this.activityConfig = activityConfig;
         this.teamSize = getTeamSize(activityConfig.defaultComposition);
 
-        console.log(`✨ Initialized Slot-Based ${activityConfig.name || 'Team'} Optimizer (${this.teamSize} players per team)`);
-        console.log(`   Architecture: PlayerPool + Slot References (duplicates impossible)`);
-
         // Configuration
         this.config = {
             useGeneticAlgorithm: true,
@@ -104,9 +101,6 @@ class SlotTeamOptimizerService {
      * @returns {Promise<Object>} Optimization result
      */
     async optimize(composition, teamCount, players) {
-        console.log(`\n🚀 Starting slot-based optimization...`);
-        console.log(`   Players: ${players.length}, Teams: ${teamCount}, Composition:`, composition);
-
         // Validate input
         const validation = this.validationService.validate(composition, teamCount, players);
         if (!validation.isValid) {
@@ -115,19 +109,16 @@ class SlotTeamOptimizerService {
 
         // Create PlayerPool - single source of truth
         const playerPool = new PlayerPool(players);
-        console.log(`   ✓ Created PlayerPool with ${playerPool.getPlayerCount()} players`);
 
         const positions = Object.keys(composition).filter(pos => composition[pos] > 0);
         const positionWeights = this.activityConfig.positionWeights;
 
         // Generate initial slot-based solutions
         const initialSolutions = generateInitialSlotSolutions(composition, teamCount, playerPool);
-        console.log(`   ✓ Generated ${initialSolutions.length} initial solutions`);
 
         // Verify no duplicates in initial solutions (sanity check)
         initialSolutions.forEach((solution, idx) => {
             if (hasDuplicatePlayerIds(solution)) {
-                console.error(`   ⚠️  Duplicate found in initial solution ${idx}!`);
             }
         });
 
@@ -143,7 +134,6 @@ class SlotTeamOptimizerService {
         };
 
         // Run algorithms in parallel
-        console.log(`\n⚙️  Running optimization algorithms...`);
         const { results, algorithmNames } = await this.runOptimizationAlgorithms(
             initialSolutions,
             problemContext
@@ -155,14 +145,11 @@ class SlotTeamOptimizerService {
         const bestIdx = scores.indexOf(Math.min(...scores));
 
         // Log algorithm performance
-        console.log('\n📊 Algorithm Performance:');
         algorithmNames.forEach((name, idx) => {
             const marker = idx === bestIdx ? '🏆' : '  ';
-            console.log(`   ${marker} ${name}: score ${scores[idx].toFixed(2)}`);
         });
 
         // Refine with local search
-        console.log(`\n🔧 Refining with local search...`);
         const localSearchContext = {
             ...problemContext,
             initialSolution: results[bestIdx]
@@ -176,13 +163,10 @@ class SlotTeamOptimizerService {
 
         // Final duplicate check (should never happen)
         if (hasDuplicatePlayerIds(bestSlotTeams)) {
-            console.error(`   ⚠️  CRITICAL: Duplicates found in final solution! This should be impossible!`);
         } else {
-            console.log(`   ✓ No duplicates (as expected with slot architecture)`);
         }
 
         // Resolve slots back to full player objects for output
-        console.log(`\n✨ Resolving slots to player objects...`);
         const resolvedTeams = playerPool.resolveTeams(bestSlotTeams);
 
         // Organize final solution
@@ -190,11 +174,6 @@ class SlotTeamOptimizerService {
 
         const { calculateTeamBalance } = await import('../utils/evaluationUtils.js');
         const balance = calculateTeamBalance(teams, this.activityConfig.positionWeights);
-
-        console.log(`\n✅ Optimization complete!`);
-        console.log(`   Best algorithm: ${algorithmNames[bestIdx]}`);
-        console.log(`   Final score: ${scores[bestIdx].toFixed(2)}`);
-        console.log(`   Balance (std dev): ${balance.standardDeviation.toFixed(2)}`);
 
         return {
             teams,
@@ -295,7 +274,6 @@ class SlotTeamOptimizerService {
                 successfulResults.push(result.value);
                 successfulNames.push(algorithmNames[idx]);
             } else {
-                console.error(`   ⚠️  ${algorithmNames[idx]} failed:`, result.reason);
             }
         });
 

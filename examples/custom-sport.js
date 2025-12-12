@@ -85,21 +85,11 @@ const players = [
 ];
 
 async function optimizeQuidditchTeams() {
-    console.log('⚡ Quidditch Team Optimizer ⚡\n');
-    console.log('Creating balanced teams for Hogwarts Inter-House Championship\n');
-
     const optimizer = new TeamOptimizerService(quidditchConfig);
 
     try {
         // Create 4 teams (one for each house)
         const teamCount = 4;
-
-        console.log('Configuration:');
-        console.log(`  Activity: ${quidditchConfig.name}`);
-        console.log(`  Players available: ${players.length}`);
-        console.log(`  Teams to create: ${teamCount} (Gryffindor, Slytherin, Ravenclaw, Hufflepuff)`);
-        console.log(`  Players per team: 7`);
-        console.log(`  Composition: 1 Seeker, 1 Keeper, 3 Chasers, 2 Beaters\n`);
 
         const result = await optimizer.optimize(
             quidditchConfig.defaultComposition,
@@ -107,35 +97,22 @@ async function optimizeQuidditchTeams() {
             players
         );
 
-        console.log('✨ Teams Created Successfully! ✨\n');
-
         // Assign house names to teams
         const houseNames = ['Gryffindor', 'Slytherin', 'Ravenclaw', 'Hufflepuff'];
         const houseColors = ['🔴', '🟢', '🔵', '🟡'];
 
         // Display results
-        console.log('=== Results ===');
-        console.log(`Balance difference: ${result.balance.difference.toFixed(2)} points`);
-        console.log(`Standard deviation: ${result.balance.standardDeviation.toFixed(2)}`);
-        console.log(`Algorithm: ${result.algorithm}\n`);
-
         // Display each team
         result.teams.forEach((team, idx) => {
             const houseName = houseNames[idx] || `Team ${idx + 1}`;
             const houseColor = houseColors[idx] || '⚪';
-
-            console.log(`\n${houseColor} === ${houseName.toUpperCase()} ===`);
-            console.log(`Team Strength: ${result.balance.teamStrengths[idx].toFixed(2)}`);
-            console.log('─'.repeat(50));
 
             // Group by position
             quidditchConfig.positionOrder.forEach(posCode => {
                 const playersAtPos = team.filter(p => p.assignedPosition === posCode);
                 if (playersAtPos.length > 0) {
                     const posName = quidditchConfig.positions[posCode];
-                    console.log(`\n  ${posName}${playersAtPos.length > 1 ? 's' : ''}:`);
                     playersAtPos.forEach(player => {
-                        console.log(`    ⭐ ${player.name} (${player.positionRating})`);
                     });
                 }
             });
@@ -143,17 +120,12 @@ async function optimizeQuidditchTeams() {
 
         // Display unused players (reserves)
         if (result.unusedPlayers.length > 0) {
-            console.log('\n\n🪑 === RESERVE PLAYERS ===');
             result.unusedPlayers.forEach(player => {
                 const positions = player.positions.map(p => quidditchConfig.positions[p]).join(' / ');
-                console.log(`  - ${player.name} (${positions})`);
             });
         }
 
-        console.log('\n\n🏆 May the best team win! 🏆');
-
     } catch (error) {
-        console.error('\n❌ Error creating teams:', error.message);
     }
 }
 

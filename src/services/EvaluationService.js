@@ -298,7 +298,6 @@ class EvaluationService {
      */
     calculateConsistency(teams) {
         if (!this.composition) {
-            console.warn('Composition not set for consistency calculation');
             return null;
         }
         return calculateConsistencyMetric(
