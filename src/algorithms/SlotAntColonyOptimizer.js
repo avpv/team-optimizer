@@ -130,7 +130,6 @@ class SlotAntColonyOptimizer extends IOptimizer {
 
             return globalBest;
         } catch (error) {
-            console.error('SlotAntColony: Error during optimization:', error);
             throw error;
         }
     }

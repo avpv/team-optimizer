@@ -94,32 +94,27 @@ class ValidationService {
         const requiredFields = ['positions', 'positionOrder', 'defaultComposition', 'positionWeights'];
         for (const field of requiredFields) {
             if (!activityConfig[field]) {
-                console.warn(`Activity config missing required field: ${field}`);
                 return false;
             }
         }
 
         // Validate positions object
         if (typeof activityConfig.positions !== 'object' || Object.keys(activityConfig.positions).length === 0) {
-            console.warn('Activity config positions must be a non-empty object');
             return false;
         }
 
         // Validate positionOrder array
         if (!Array.isArray(activityConfig.positionOrder) || activityConfig.positionOrder.length === 0) {
-            console.warn('Activity config positionOrder must be a non-empty array');
             return false;
         }
 
         // Validate defaultComposition
         if (typeof activityConfig.defaultComposition !== 'object') {
-            console.warn('Activity config defaultComposition must be an object');
             return false;
         }
 
         // Validate positionWeights
         if (typeof activityConfig.positionWeights !== 'object') {
-            console.warn('Activity config positionWeights must be an object');
             return false;
         }
 

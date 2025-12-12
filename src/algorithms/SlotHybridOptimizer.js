@@ -83,11 +83,7 @@ class SlotHybridOptimizer extends IOptimizer {
             let bestSolution = cloneSlotTeams(currentSolution);
             let bestScore = evaluateSlotSolution(bestSolution, playerPool, positionWeights);
 
-            console.log('[SlotHybrid] Starting optimization');
-            console.log(`[SlotHybrid] Initial score: ${bestScore.toFixed(2)}`);
-
             // Phase 1: Genetic Algorithm - Global Exploration
-            console.log('[SlotHybrid] Phase 1: Genetic Algorithm (Global Exploration)');
             const phase1Result = await this.phase1GeneticAlgorithm(
                 problemContext,
                 currentSolution,
@@ -98,11 +94,9 @@ class SlotHybridOptimizer extends IOptimizer {
                 bestSolution = phase1Result.solution;
                 bestScore = phase1Result.score;
                 this.stats.bestPhase = 'Genetic Algorithm';
-                console.log(`[SlotHybrid] Phase 1 improved to: ${bestScore.toFixed(2)}`);
             }
 
             // Phase 2: Tabu Search - Focused Exploitation
-            console.log('[SlotHybrid] Phase 2: Tabu Search (Focused Exploitation)');
             const phase2Result = await this.phase2TabuSearch(
                 problemContext,
                 bestSolution,
@@ -113,11 +107,9 @@ class SlotHybridOptimizer extends IOptimizer {
                 bestSolution = phase2Result.solution;
                 bestScore = phase2Result.score;
                 this.stats.bestPhase = 'Tabu Search';
-                console.log(`[SlotHybrid] Phase 2 improved to: ${bestScore.toFixed(2)}`);
             }
 
             // Phase 3: Local Search - Final Polishing
-            console.log('[SlotHybrid] Phase 3: Local Search (Final Polishing)');
             const phase3Result = await this.phase3LocalSearch(
                 problemContext,
                 bestSolution,
@@ -130,16 +122,11 @@ class SlotHybridOptimizer extends IOptimizer {
                 if (this.stats.bestPhase !== 'Tabu Search' && this.stats.bestPhase !== 'Genetic Algorithm') {
                     this.stats.bestPhase = 'Local Search';
                 }
-                console.log(`[SlotHybrid] Phase 3 improved to: ${bestScore.toFixed(2)}`);
             }
-
-            console.log(`[SlotHybrid] Final score: ${bestScore.toFixed(2)}`);
-            console.log(`[SlotHybrid] Best improvement from: ${this.stats.bestPhase || 'Initial Solution'}`);
 
             return bestSolution;
 
         } catch (error) {
-            console.error('[SlotHybrid] Error during optimization:', error);
             return initialSolution;
         }
     }

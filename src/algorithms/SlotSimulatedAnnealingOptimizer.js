@@ -122,7 +122,6 @@ class SlotSimulatedAnnealingOptimizer extends IOptimizer {
 
             return best;
         } catch (error) {
-            console.error('SlotSimulatedAnnealing: Error during optimization:', error);
             throw error;
         }
     }

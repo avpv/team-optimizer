@@ -164,7 +164,6 @@ class SlotTabuSearchOptimizer extends IOptimizer {
 
             return best;
         } catch (error) {
-            console.error('SlotTabuSearch: Error during optimization:', error);
             throw error;
         }
     }

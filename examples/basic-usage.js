@@ -61,42 +61,26 @@ const optimizer = new TeamOptimizerService(miniSoccerConfig);
 // Step 4: Run the optimization
 async function runOptimization() {
     try {
-        console.log('Starting team optimization...\n');
-
         const result = await optimizer.optimize(
             miniSoccerConfig.defaultComposition,  // Use default composition
             2,                                      // Create 2 teams
             players                                 // With these players
         );
 
-        console.log('✅ Optimization complete!\n');
-
         // Display results
-        console.log(`Algorithm used: ${result.algorithm}`);
-        console.log(`Teams created: ${result.teams.length}`);
-        console.log(`Balance difference: ${result.balance.difference.toFixed(2)}`);
-        console.log(`Standard deviation: ${result.balance.standardDeviation.toFixed(2)}\n`);
-
         // Display each team
         result.teams.forEach((team, index) => {
-            console.log(`\n=== Team ${index + 1} ===`);
-            console.log(`Strength: ${result.balance.teamStrengths[index].toFixed(2)}`);
-            console.log('Players:');
             team.forEach(player => {
-                console.log(`  - ${player.name} (${player.assignedPosition}): ${player.positionRating}`);
             });
         });
 
         // Display unused players (if any)
         if (result.unusedPlayers.length > 0) {
-            console.log('\n=== Unused Players ===');
             result.unusedPlayers.forEach(player => {
-                console.log(`  - ${player.name} (${player.positions.join(', ')})`);
             });
         }
 
     } catch (error) {
-        console.error('❌ Optimization failed:', error.message);
     }
 }
 

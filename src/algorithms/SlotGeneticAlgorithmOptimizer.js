@@ -146,7 +146,6 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
             }))
             .sort((a, b) => a.score - b.score)[0].teams;
         } catch (error) {
-            console.error('SlotGA: Error during optimization:', error);
             throw error;
         }
     }

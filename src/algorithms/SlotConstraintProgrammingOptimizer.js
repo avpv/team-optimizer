@@ -94,13 +94,11 @@ class SlotConstraintProgrammingOptimizer extends IOptimizer {
 
             // Fallback to smart construction if no solution found
             if (!bestSolution) {
-                console.warn(`SlotCP: No solution found after ${this.stats.backtracks} backtracks, using smart construction`);
                 bestSolution = createSmartSlotSolution(composition, teamCount, playerPool);
             }
 
             return bestSolution;
         } catch (error) {
-            console.error('SlotCP: Error during optimization:', error);
             return createSmartSlotSolution(composition, teamCount, playerPool);
         }
     }

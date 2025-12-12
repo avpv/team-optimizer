@@ -79,7 +79,6 @@ class SlotLocalSearchOptimizer extends IOptimizer {
 
             return current;
         } catch (error) {
-            console.error('SlotLocalSearch: Error during optimization:', error);
             // For local search, if it fails, just return the initial solution
             return cloneSlotTeams(initialSolution);
         }

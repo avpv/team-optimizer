@@ -19,7 +19,6 @@ export function validateActivityConfig(config) {
 
     for (const field of required) {
         if (!config[field]) {
-            console.error(`Missing required field: ${field}`);
             return false;
         }
     }
@@ -27,7 +26,6 @@ export function validateActivityConfig(config) {
     // Check all positions have weights
     for (const pos of Object.keys(config.positions)) {
         if (!config.positionWeights[pos]) {
-            console.warn(`Missing weight for position: ${pos}, using 1.0`);
             config.positionWeights[pos] = 1.0;
         }
     }
@@ -36,7 +34,6 @@ export function validateActivityConfig(config) {
     const compositionPositions = Object.keys(config.defaultComposition);
     for (const pos of compositionPositions) {
         if (!config.positionOrder.includes(pos)) {
-            console.warn(`Position ${pos} from defaultComposition not in positionOrder`);
         }
     }
 
