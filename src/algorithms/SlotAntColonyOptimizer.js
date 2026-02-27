@@ -146,19 +146,33 @@ class SlotAntColonyOptimizer extends IOptimizer {
         const teams = Array.from({ length: teamCount }, () => []);
         const usedIds = new Set();
 
-        // Smart position ordering: fill scarce positions first
-        const positionPriority = Object.keys(composition);
-        const positionOrder = positionPriority
-            .map(pos => [pos, composition[pos]])
-            .filter(([, count]) => count && count > 0);
+        // Sort positions by scarcity: scarcer positions first to avoid running out of players
+        const positionOrder = Object.entries(composition)
+            .filter(([, count]) => count && count > 0)
+            .map(([pos, count]) => {
+                const totalNeeded = count * teamCount;
+                const available = playerPool.getPlayerIdsForPosition(pos).length;
+                const scarcity = available / totalNeeded; // Lower = scarcer
+                return [pos, count, scarcity];
+            })
+            .sort((a, b) => a[2] - b[2]); // Scarce positions first
 
         positionOrder.forEach(([position, neededCount]) => {
-            // Get available player IDs for this position
+            // Get available player IDs for this position, prefer specialists
             let availablePlayerIds = playerPool.getPlayerIdsForPosition(position)
                 .filter(id => !usedIds.has(id));
 
+            // Sort: specialists first (fewer positions = higher priority)
+            availablePlayerIds.sort((a, b) => {
+                const playerA = playerPool.getPlayer(a);
+                const playerB = playerPool.getPlayer(b);
+                return (playerA?.positions?.length || 1) - (playerB?.positions?.length || 1);
+            });
+
             for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
                 for (let slot = 0; slot < neededCount; slot++) {
+                    // Refresh available list (some may have been used for other teams)
+                    availablePlayerIds = availablePlayerIds.filter(id => !usedIds.has(id));
                     if (availablePlayerIds.length === 0) break;
 
                     // Calculate probabilities based on pheromones and heuristic
@@ -182,9 +196,6 @@ class SlotAntColonyOptimizer extends IOptimizer {
                         position: position
                     });
                     usedIds.add(selectedPlayerId);
-
-                    // Remove from available
-                    availablePlayerIds = availablePlayerIds.filter(id => id !== selectedPlayerId);
                 }
             }
         });

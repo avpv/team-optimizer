@@ -389,20 +389,48 @@ class SlotHybridOptimizer extends IOptimizer {
         const allPlayerIds = playerPool.getAllPlayers().map(p => p.id);
         const remainingIds = allPlayerIds.filter(id => !usedIds.has(id));
 
+        // Sort: specialists first so multi-position players stay flexible
+        remainingIds.sort((a, b) => {
+            const playerA = playerPool.getPlayer(a);
+            const playerB = playerPool.getPlayer(b);
+            return (playerA?.positions?.length || 1) - (playerB?.positions?.length || 1);
+        });
+
         remainingIds.forEach(playerId => {
             const player = playerPool.getPlayer(playerId);
-            if (player && player.positions && player.positions.length > 0) {
-                const position = player.positions[0];
+            if (!player || !player.positions || player.positions.length === 0) return;
 
-                // Find team that needs this position
+            let placed = false;
+
+            // Try ALL positions the player can play, not just the first one
+            for (const position of player.positions) {
+                const neededCount = composition[position] || 0;
+                if (neededCount === 0) continue;
+
                 for (let i = 0; i < child.length; i++) {
                     const currentCount = child[i].filter(s => s.position === position).length;
-                    const neededCount = composition[position] || 0;
-
                     if (currentCount < neededCount) {
                         child[i].push({ playerId, position });
+                        placed = true;
                         break;
                     }
+                }
+                if (placed) break;
+            }
+
+            // Last resort: add to smallest incomplete team
+            if (!placed) {
+                const teamSize = Object.values(composition).reduce((sum, c) => sum + c, 0);
+                let smallestTeam = null;
+                let smallestSize = Infinity;
+                for (let i = 0; i < child.length; i++) {
+                    if (child[i].length < teamSize && child[i].length < smallestSize) {
+                        smallestSize = child[i].length;
+                        smallestTeam = child[i];
+                    }
+                }
+                if (smallestTeam) {
+                    smallestTeam.push({ playerId, position: player.positions[0] });
                 }
             }
         });
