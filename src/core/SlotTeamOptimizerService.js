@@ -110,6 +110,11 @@ class SlotTeamOptimizerService {
         // Create PlayerPool - single source of truth
         const playerPool = new PlayerPool(players);
 
+        // Generate a per-run salt so each optimization produces different results.
+        // The salt perturbs the evaluation function slightly, causing algorithms
+        // to converge to different (but still well-balanced) local optima.
+        playerPool.salt = Date.now() ^ (Math.random() * 0x7fffffff | 0);
+
         const positions = Object.keys(composition).filter(pos => composition[pos] > 0);
         const positionWeights = this.activityConfig.positionWeights;
 

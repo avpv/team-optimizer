@@ -102,6 +102,27 @@ export function calculateSlotTeamBalance(teams, playerPool, positionWeights) {
 }
 
 /**
+ * Compute a deterministic perturbation for a team-player assignment.
+ * Uses a fast multiplicative hash (Knuth's) to produce a small, bounded value
+ * that varies with the salt so different optimization runs prefer different solutions.
+ * @param {Array<Array<{playerId, position}>>} teams - Slot-based teams
+ * @param {number} salt - Per-run salt value
+ * @returns {number} Small perturbation value
+ */
+function computeSaltPerturbation(teams, salt) {
+    let perturbation = 0;
+    for (let teamIdx = 0; teamIdx < teams.length; teamIdx++) {
+        const team = teams[teamIdx];
+        let teamHash = (salt * 2654435761) >>> 0;
+        for (let i = 0; i < team.length; i++) {
+            teamHash = ((teamHash ^ (team[i].playerId * 2654435761)) + teamIdx * 31 + i * 17) >>> 0;
+        }
+        perturbation += (teamHash % 10000) / 100000; // 0.0 to 0.1 per team
+    }
+    return perturbation;
+}
+
+/**
  * Evaluate solution quality (lower is better) - slot-based
  * @param {Array<Array<{playerId, position}>>} teams - Slot-based teams
  * @param {Object} playerPool - PlayerPool instance
@@ -125,7 +146,13 @@ export function evaluateSlotSolution(teams, playerPool, positionWeights, params 
     const differenceScore = balance.difference;
 
     // Combined score
-    const totalScore = varianceScore + differenceScore;
+    let totalScore = varianceScore + differenceScore;
+
+    // Salt-based perturbation: slightly varies the score between runs
+    // so that different optimization runs converge to different (but still balanced) solutions
+    if (playerPool.salt !== undefined) {
+        totalScore += computeSaltPerturbation(teams, playerPool.salt);
+    }
 
     return totalScore;
 }
