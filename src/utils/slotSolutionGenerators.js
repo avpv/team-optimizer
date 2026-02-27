@@ -401,7 +401,7 @@ export function createRandomSlotSolution(composition, teamCount, playerPool) {
  */
 export function generateInitialSlotSolutions(composition, teamCount, playerPool) {
     return [
-        createSmartSlotSolution(composition, teamCount, playerPool, false),
+        createSmartSlotSolution(composition, teamCount, playerPool, true),
         createSmartSlotSolution(composition, teamCount, playerPool, true),
         createGreedySlotSolution(composition, teamCount, playerPool, true),
         createBalancedSlotSolution(composition, teamCount, playerPool, true),
