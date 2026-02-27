@@ -1,7 +1,7 @@
 // src/algorithms/SlotHybridOptimizer.js
 
 import IOptimizer from '../core/IOptimizer.js';
-import { cloneSlotTeams, hashSlotSolution } from '../utils/teamSlotUtils.js';
+import { cloneSlotTeams, hashSlotSolution, validateAllSlotTeamsComposition } from '../utils/teamSlotUtils.js';
 import { performUniversalSlotSwap, performAdaptiveSlotSwap } from '../utils/slotSwapOperations.js';
 import { evaluateSlotSolution } from '../utils/slotEvaluationUtils.js';
 import { createRandomSlotSolution } from '../utils/slotSolutionGenerators.js';
@@ -180,7 +180,13 @@ class SlotHybridOptimizer extends IOptimizer {
                 if (Math.random() < config.crossoverRate) {
                     const parent2 = this.tournamentSelection(scored, config.tournamentSize);
                     const child = this.slotCrossover(parent1, parent2, composition, playerPool);
-                    newPopulation.push(child);
+
+                    // Reject children with invalid composition
+                    if (validateAllSlotTeamsComposition(child, composition).isValid) {
+                        newPopulation.push(child);
+                    } else {
+                        newPopulation.push(createRandomSlotSolution(composition, teamCount, playerPool));
+                    }
                 } else {
                     newPopulation.push(cloneSlotTeams(parent1));
                 }

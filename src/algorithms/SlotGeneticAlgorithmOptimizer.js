@@ -1,7 +1,7 @@
 // src/algorithms/SlotGeneticAlgorithmOptimizer.js
 
 import IOptimizer from '../core/IOptimizer.js';
-import { cloneSlotTeams, hashSlotSolution } from '../utils/teamSlotUtils.js';
+import { cloneSlotTeams, hashSlotSolution, validateAllSlotTeamsComposition } from '../utils/teamSlotUtils.js';
 import { performUniversalSlotSwap } from '../utils/slotSwapOperations.js';
 import { createRandomSlotSolution } from '../utils/slotSolutionGenerators.js';
 import { evaluateSlotSolution } from '../utils/slotEvaluationUtils.js';
@@ -89,11 +89,14 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
                         const parent2 = this.tournamentSelection(scored, this.config.tournamentSize);
                         const child = this.slotCrossover(parent1, parent2, composition, playerPool);
 
+                        // Reject children with invalid composition
+                        const compositionValid = validateAllSlotTeamsComposition(child, composition).isValid;
+
                         // Diversity check: avoid adding very similar solutions
-                        if (this.isDiverse(child, newPopulation)) {
+                        if (compositionValid && this.isDiverse(child, newPopulation)) {
                             newPopulation.push(child);
                         } else {
-                            // If too similar, create a random solution instead
+                            // Invalid composition or too similar — create a valid random solution
                             newPopulation.push(createRandomSlotSolution(composition, teamCount, playerPool));
                         }
                     } else {
