@@ -8,6 +8,27 @@
  */
 
 /**
+ * Sort positions by scarcity (scarcer positions first).
+ * This prevents multi-position players from being consumed by common positions
+ * before scarcer positions are filled.
+ * @param {Array<[string, number]>} positionOrder - Array of [position, count]
+ * @param {number} teamCount - Number of teams
+ * @param {Object} playerPool - PlayerPool instance
+ * @returns {Array<[string, number]>} Sorted position order
+ */
+function sortPositionsByScarcity(positionOrder, teamCount, playerPool) {
+    return positionOrder.sort((a, b) => {
+        const [posA, countA] = a;
+        const [posB, countB] = b;
+        const availableA = playerPool.getPlayerIdsForPosition(posA).length;
+        const availableB = playerPool.getPlayerIdsForPosition(posB).length;
+        const scarcityA = availableA / (countA * teamCount);
+        const scarcityB = availableB / (countB * teamCount);
+        return scarcityA - scarcityB; // Scarcer first
+    });
+}
+
+/**
  * Calculate position scarcity for smart allocation
  * @param {Object} composition - Position requirements
  * @param {number} teamCount - Number of teams
@@ -158,17 +179,13 @@ export function createGreedySlotSolution(composition, teamCount, playerPool, ran
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = Object.keys(composition);
-    let positionOrder = positionPriority
+    let positionOrder = Object.keys(composition)
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
 
-    if (randomize) {
-        for (let i = positionOrder.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [positionOrder[i], positionOrder[j]] = [positionOrder[j], positionOrder[i]];
-        }
-    }
+    // Always sort by scarcity to prevent multi-position players being consumed
+    // by common positions before scarcer ones. Randomness comes from player selection.
+    sortPositionsByScarcity(positionOrder, teamCount, playerPool);
 
     positionOrder.forEach(([position, neededCount]) => {
         const playerIds = playerPool.getPlayerIdsForPosition(position)
@@ -209,17 +226,13 @@ export function createBalancedSlotSolution(composition, teamCount, playerPool, r
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = Object.keys(composition);
-    let positionOrder = positionPriority
+    let positionOrder = Object.keys(composition)
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
 
-    if (randomize) {
-        for (let i = positionOrder.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [positionOrder[i], positionOrder[j]] = [positionOrder[j], positionOrder[i]];
-        }
-    }
+    // Always sort by scarcity to prevent multi-position players being consumed
+    // by common positions before scarcer ones. Randomness comes from player selection.
+    sortPositionsByScarcity(positionOrder, teamCount, playerPool);
 
     positionOrder.forEach(([position, neededCount]) => {
         const playerIds = playerPool.getPlayerIdsForPosition(position)
@@ -263,17 +276,13 @@ export function createSnakeDraftSlotSolution(composition, teamCount, playerPool,
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = Object.keys(composition);
-    let positionOrder = positionPriority
+    let positionOrder = Object.keys(composition)
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
 
-    if (randomize) {
-        for (let i = positionOrder.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [positionOrder[i], positionOrder[j]] = [positionOrder[j], positionOrder[i]];
-        }
-    }
+    // Always sort by scarcity to prevent multi-position players being consumed
+    // by common positions before scarcer ones. Randomness comes from player selection.
+    sortPositionsByScarcity(positionOrder, teamCount, playerPool);
 
     positionOrder.forEach(([position, neededCount]) => {
         const playerIds = playerPool.getPlayerIdsForPosition(position)
@@ -330,10 +339,13 @@ export function createRandomSlotSolution(composition, teamCount, playerPool) {
     const teams = Array.from({ length: teamCount }, () => []);
     const usedIds = new Set();
 
-    const positionPriority = Object.keys(composition);
-    const positionOrder = positionPriority
+    let positionOrder = Object.keys(composition)
         .map(pos => [pos, composition[pos]])
         .filter(([, count]) => count && count > 0);
+
+    // Sort by scarcity to prevent multi-position players being consumed
+    // by common positions before scarcer ones
+    sortPositionsByScarcity(positionOrder, teamCount, playerPool);
 
     positionOrder.forEach(([position, neededCount]) => {
         if (neededCount === 0) return;
@@ -341,18 +353,36 @@ export function createRandomSlotSolution(composition, teamCount, playerPool) {
         const playerIds = playerPool.getPlayerIdsForPosition(position)
             .filter(id => !usedIds.has(id));
 
-        // Shuffle
-        for (let i = playerIds.length - 1; i > 0; i--) {
+        // Shuffle players (but keep specialists at front for priority)
+        // Separate specialists and multi-position players
+        const specialists = playerIds.filter(id => {
+            const player = playerPool.getPlayer(id);
+            return player && player.positions.length === 1;
+        });
+        const multiPos = playerIds.filter(id => {
+            const player = playerPool.getPlayer(id);
+            return player && player.positions.length > 1;
+        });
+
+        // Shuffle each group separately
+        for (let i = specialists.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
+            [specialists[i], specialists[j]] = [specialists[j], specialists[i]];
         }
+        for (let i = multiPos.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [multiPos[i], multiPos[j]] = [multiPos[j], multiPos[i]];
+        }
+
+        // Specialists first, then multi-position players
+        const sortedPlayerIds = [...specialists, ...multiPos];
 
         let playerIdx = 0;
         for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
             for (let slot = 0; slot < neededCount; slot++) {
-                if (playerIdx < playerIds.length) {
-                    teams[teamIdx].push({ playerId: playerIds[playerIdx], position });
-                    usedIds.add(playerIds[playerIdx]);
+                if (playerIdx < sortedPlayerIds.length) {
+                    teams[teamIdx].push({ playerId: sortedPlayerIds[playerIdx], position });
+                    usedIds.add(sortedPlayerIds[playerIdx]);
                     playerIdx++;
                 }
             }
