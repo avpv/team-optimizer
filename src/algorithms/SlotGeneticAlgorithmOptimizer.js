@@ -251,10 +251,21 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
         // Key advantage: No duplicate checking needed!
         const remainingSlots = parent2.flat().filter(slot => !usedIds.has(slot.playerId));
 
+        // Sort remaining: specialists first (fewer positions = higher priority)
+        // This ensures single-position players get placed before multi-position ones,
+        // leaving multi-position players flexible to fill remaining slots
+        remainingSlots.sort((a, b) => {
+            const playerA = playerPool.getPlayer(a.playerId);
+            const playerB = playerPool.getPlayer(b.playerId);
+            const posCountA = playerA ? playerA.positions.length : 1;
+            const posCountB = playerB ? playerB.positions.length : 1;
+            return posCountA - posCountB;
+        });
+
         remainingSlots.forEach(slot => {
             let placed = false;
 
-            // Try to place in team that needs this position
+            // Try to place in team that needs this position (from parent2)
             for (let i = slicePoint; i < child.length; i++) {
                 const currentCount = child[i].filter(s => s.position === slot.position).length;
                 const neededCount = composition[slot.position] || 0;
@@ -269,17 +280,48 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
                 }
             }
 
-            // If not placed, add to smallest team
+            // If original position is full, try alternative positions the player can play
             if (!placed) {
-                const smallestTeam = child.reduce((smallest, current, idx) => {
-                    if (idx < slicePoint) return smallest; // Skip already filled teams
-                    return current.length < smallest.length ? current : smallest;
-                }, child[slicePoint]);
+                const player = playerPool.getPlayer(slot.playerId);
+                if (player && player.positions) {
+                    for (const altPosition of player.positions) {
+                        if (altPosition === slot.position) continue; // Already tried
+                        const neededCount = composition[altPosition] || 0;
+                        if (neededCount === 0) continue;
 
-                smallestTeam.push({
-                    playerId: slot.playerId,
-                    position: slot.position
-                });
+                        for (let i = slicePoint; i < child.length; i++) {
+                            const currentCount = child[i].filter(s => s.position === altPosition).length;
+                            if (currentCount < neededCount) {
+                                child[i].push({
+                                    playerId: slot.playerId,
+                                    position: altPosition
+                                });
+                                placed = true;
+                                break;
+                            }
+                        }
+                        if (placed) break;
+                    }
+                }
+            }
+
+            // Last resort: add to smallest team that still needs players
+            if (!placed) {
+                const teamSize = Object.values(composition).reduce((sum, c) => sum + c, 0);
+                let smallestTeam = null;
+                let smallestSize = Infinity;
+                for (let i = slicePoint; i < child.length; i++) {
+                    if (child[i].length < teamSize && child[i].length < smallestSize) {
+                        smallestSize = child[i].length;
+                        smallestTeam = child[i];
+                    }
+                }
+                if (smallestTeam) {
+                    smallestTeam.push({
+                        playerId: slot.playerId,
+                        position: slot.position
+                    });
+                }
             }
         });
 

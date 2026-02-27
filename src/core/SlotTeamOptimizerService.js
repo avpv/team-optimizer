@@ -9,7 +9,7 @@ import SlotLocalSearchOptimizer from '../algorithms/SlotLocalSearchOptimizer.js'
 import PlayerPool from './PlayerPool.js';
 import { generateInitialSlotSolutions } from '../utils/slotSolutionGenerators.js';
 import { getTeamSize } from '../utils/configHelpers.js';
-import { hasDuplicatePlayerIds } from '../utils/teamSlotUtils.js';
+import { hasDuplicatePlayerIds, validateAllSlotTeamsComposition } from '../utils/teamSlotUtils.js';
 
 import ValidationService from '../services/ValidationService.js';
 import SolutionOrganizer from '../services/SolutionOrganizer.js';
@@ -158,12 +158,30 @@ class SlotTeamOptimizerService {
             this.algorithmConfigs.localSearch,
             this.config.adaptiveParameters
         );
-        const bestSlotTeams = await localSearchOptimizer.solve(localSearchContext);
+        let bestSlotTeams = await localSearchOptimizer.solve(localSearchContext);
         this.algorithmStats.localSearch = localSearchOptimizer.getStatistics();
 
         // Final duplicate check (should never happen)
         if (hasDuplicatePlayerIds(bestSlotTeams)) {
         } else {
+        }
+
+        // Validate composition of final solution
+        const compositionValidation = validateAllSlotTeamsComposition(bestSlotTeams, composition);
+        if (!compositionValidation.isValid) {
+            // Composition violated - regenerate a valid solution from scratch
+            const fallbackSolution = generateInitialSlotSolutions(composition, teamCount, playerPool)[0];
+            const fallbackRefined = await localSearchOptimizer.solve({
+                ...problemContext,
+                initialSolution: fallbackSolution
+            });
+            const fallbackValidation = validateAllSlotTeamsComposition(fallbackRefined, composition);
+            if (fallbackValidation.isValid) {
+                bestSlotTeams = fallbackRefined;
+            } else {
+                // Use initial smart solution as safe fallback
+                bestSlotTeams = fallbackSolution;
+            }
         }
 
         // Resolve slots back to full player objects for output
