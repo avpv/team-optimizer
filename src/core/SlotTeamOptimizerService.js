@@ -240,7 +240,6 @@ class SlotTeamOptimizerService {
             return true;
         });
 
-        // Return single result for backward compatibility, or array of variants
         if (variantCount <= 1) {
             return uniqueVariants[0];
         }
