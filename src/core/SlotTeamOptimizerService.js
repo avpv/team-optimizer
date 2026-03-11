@@ -127,7 +127,9 @@ class SlotTeamOptimizerService {
             }
         });
 
-        this.resetAlgorithmStats();
+        // Use local stats object to avoid shared state issues when
+        // multiple optimize() calls run in parallel on the same instance
+        const localStats = {};
 
         // Create problem context for all optimizers
         const problemContext = {
@@ -139,10 +141,11 @@ class SlotTeamOptimizerService {
         };
 
         // Run algorithms in parallel
-        const { results, algorithmNames } = await this.runOptimizationAlgorithms(
+        const { results, algorithmNames, stats: algorithmRunStats } = await this.runOptimizationAlgorithms(
             initialSolutions,
             problemContext
         );
+        Object.assign(localStats, algorithmRunStats);
 
         // Select best result
         const { evaluateSlotSolution } = await import('../utils/slotEvaluationUtils.js');
@@ -164,7 +167,7 @@ class SlotTeamOptimizerService {
             this.config.adaptiveParameters
         );
         let bestSlotTeams = await localSearchOptimizer.solve(localSearchContext);
-        this.algorithmStats.localSearch = localSearchOptimizer.getStatistics();
+        localStats.localSearch = localSearchOptimizer.getStatistics();
 
         // Final duplicate check (should never happen)
         if (hasDuplicatePlayerIds(bestSlotTeams)) {
@@ -204,7 +207,7 @@ class SlotTeamOptimizerService {
             unusedPlayers,
             validation,
             algorithm: `${algorithmNames[bestIdx]} + Local Search (Slot-Based)`,
-            statistics: this.getAlgorithmStatistics()
+            statistics: localStats
         };
     }
 
@@ -217,6 +220,7 @@ class SlotTeamOptimizerService {
     async runOptimizationAlgorithms(initialSolutions, problemContext) {
         const algorithmPromises = [];
         const algorithmNames = [];
+        const stats = {};
 
         const getRandomInitialSolution = () => {
             return initialSolutions[Math.floor(Math.random() * initialSolutions.length)];
@@ -231,7 +235,7 @@ class SlotTeamOptimizerService {
             const context = { ...problemContext, initialSolution: initialSolutions };
             algorithmPromises.push(
                 optimizer.solve(context).then(result => {
-                    this.algorithmStats.geneticAlgorithm = optimizer.getStatistics();
+                    stats.geneticAlgorithm = optimizer.getStatistics();
                     return result;
                 })
             );
@@ -259,7 +263,7 @@ class SlotTeamOptimizerService {
                         evaluateSlotSolution(r, problemContext.playerPool, problemContext.positionWeights)
                     );
                     const bestIdx = scores.indexOf(Math.min(...scores));
-                    this.algorithmStats.tabuSearch = {
+                    stats.tabuSearch = {
                         iterations: startCount * this.algorithmConfigs.tabuSearch.iterations,
                         improvements: 0
                     };
@@ -278,7 +282,7 @@ class SlotTeamOptimizerService {
             const context = { ...problemContext, initialSolution: getRandomInitialSolution() };
             algorithmPromises.push(
                 optimizer.solve(context).then(result => {
-                    this.algorithmStats.simulatedAnnealing = optimizer.getStatistics();
+                    stats.simulatedAnnealing = optimizer.getStatistics();
                     return result;
                 })
             );
@@ -306,7 +310,8 @@ class SlotTeamOptimizerService {
 
         return {
             results: successfulResults,
-            algorithmNames: successfulNames
+            algorithmNames: successfulNames,
+            stats
         };
     }
 
