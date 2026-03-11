@@ -82,9 +82,9 @@ class SlotTeamOptimizerService {
                 coolingRate: 0.99997,  // T(120000) ≈ 2.7, effective throughout
                 iterations: 120000,
                 reheatEnabled: true,
-                reheatTemperature: 50,
-                reheatIterations: 30000,
-                adaptiveCooling: true  // Cool faster on stagnation
+                reheatTemperature: 15,  // Mild reheat: enough to escape local minima
+                reheatIterations: 30000, // but low enough to converge (T≈6 after 30k iters)
+                adaptiveCooling: true
             },
             localSearch: {
                 iterations: 4000,

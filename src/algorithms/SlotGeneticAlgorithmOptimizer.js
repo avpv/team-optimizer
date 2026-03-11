@@ -145,7 +145,7 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
             // Return best solution
             return population.map(ind => ({
                 teams: ind,
-                score: evaluateSlotSolution(ind, playerPool, positionWeights)
+                score: evaluateSlotSolution(ind, playerPool, positionWeights, composition)
             }))
             .sort((a, b) => a.score - b.score)[0].teams;
         } catch (error) {
