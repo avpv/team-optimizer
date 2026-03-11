@@ -47,7 +47,7 @@ class SlotLocalSearchOptimizer extends IOptimizer {
 
         try {
             let current = cloneSlotTeams(initialSolution);
-            let currentScore = evaluateSlotSolution(current, playerPool, positionWeights);
+            let currentScore = evaluateSlotSolution(current, playerPool, positionWeights, composition);
 
             for (let iter = 0; iter < this.config.iterations; iter++) {
                 this.stats.iterations = iter + 1;
@@ -64,7 +64,7 @@ class SlotLocalSearchOptimizer extends IOptimizer {
                     performUniversalSlotSwap(neighbor, positions, playerPool, this.adaptiveParams);
                 }
 
-                const neighborScore = evaluateSlotSolution(neighbor, playerPool, positionWeights);
+                const neighborScore = evaluateSlotSolution(neighbor, playerPool, positionWeights, composition);
 
                 // Accept only improvements (greedy hill climbing)
                 if (neighborScore < currentScore) {

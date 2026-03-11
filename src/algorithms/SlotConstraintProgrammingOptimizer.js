@@ -79,7 +79,7 @@ class SlotConstraintProgrammingOptimizer extends IOptimizer {
                 this.stats.conflicts += attemptStats.conflicts;
 
                 if (solution) {
-                    const score = evaluateSlotSolution(solution, playerPool, positionWeights);
+                    const score = evaluateSlotSolution(solution, playerPool, positionWeights, composition);
 
                     if (score < bestScore) {
                         bestSolution = solution;

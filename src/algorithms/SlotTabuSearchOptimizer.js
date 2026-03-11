@@ -52,7 +52,7 @@ class SlotTabuSearchOptimizer extends IOptimizer {
         try {
             let current = cloneSlotTeams(initialSolution);
             let best = cloneSlotTeams(current);
-            let bestScore = evaluateSlotSolution(best, playerPool, positionWeights);
+            let bestScore = evaluateSlotSolution(best, playerPool, positionWeights, composition);
 
             const tabuSet = new Set(); // O(1) lookup
             const tabuQueue = []; // FIFO removal
@@ -81,7 +81,7 @@ class SlotTabuSearchOptimizer extends IOptimizer {
                 // Find best neighbor (considering tabu list and aspiration criterion)
                 for (const neighbor of neighbors) {
                     const hash = hashSlotSolution(neighbor);
-                    const score = evaluateSlotSolution(neighbor, playerPool, positionWeights);
+                    const score = evaluateSlotSolution(neighbor, playerPool, positionWeights, composition);
                     const isTabu = tabuSet.has(hash);
 
                     // Track best non-tabu neighbor as fallback
@@ -136,7 +136,7 @@ class SlotTabuSearchOptimizer extends IOptimizer {
                 if (iter > 0 && iter % this.config.diversificationFrequency === 0) {
                     current = cloneSlotTeams(best);
                     // Perform multiple swaps for strong diversification
-                    const swapCount = Math.max(3, Math.floor(current[0].length / 2));
+                    const swapCount = Math.max(2, Math.floor(current[0].length / 4));
                     for (let i = 0; i < swapCount; i++) {
                         performUniversalSlotSwap(current, positions, playerPool, this.adaptiveParams);
                     }

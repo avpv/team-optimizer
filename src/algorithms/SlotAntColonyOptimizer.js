@@ -72,10 +72,11 @@ class SlotAntColonyOptimizer extends IOptimizer {
                         composition,
                         teamCount,
                         playerPool,
-                        pheromones
+                        pheromones,
+                        positionWeights
                     );
 
-                    const score = evaluateSlotSolution(solution, playerPool, positionWeights);
+                    const score = evaluateSlotSolution(solution, playerPool, positionWeights, composition);
                     iterationSolutions.push({ solution, score });
 
                     if (score < globalBestScore) {
@@ -142,9 +143,19 @@ class SlotAntColonyOptimizer extends IOptimizer {
      * @param {Map} pheromones - Pheromone matrix
      * @returns {Array<Array<{playerId, position}>>} Constructed solution
      */
-    constructAntSolution(composition, teamCount, playerPool, pheromones) {
+    constructAntSolution(composition, teamCount, playerPool, pheromones, positionWeights = {}) {
         const teams = Array.from({ length: teamCount }, () => []);
         const usedIds = new Set();
+
+        // Pre-calculate target strength per team (total / teamCount)
+        const totalStrength = playerPool.getAllPlayers().reduce((sum, p) => {
+            const bestPos = p.positions?.[0];
+            if (!bestPos) return sum;
+            const rating = p.ratings?.[bestPos] || 1500;
+            const weight = positionWeights[bestPos] || 1.0;
+            return sum + rating * weight;
+        }, 0);
+        const targetStrength = totalStrength / teamCount;
 
         // Sort positions by scarcity: scarcer positions first to avoid running out of players
         const positionOrder = Object.entries(composition)
@@ -175,13 +186,16 @@ class SlotAntColonyOptimizer extends IOptimizer {
                     availablePlayerIds = availablePlayerIds.filter(id => !usedIds.has(id));
                     if (availablePlayerIds.length === 0) break;
 
-                    // Calculate probabilities based on pheromones and heuristic
+                    // Calculate probabilities based on pheromones and balance heuristic
                     const probabilities = this.calculateAntProbabilities(
                         availablePlayerIds,
                         teamIdx,
                         position,
                         playerPool,
-                        pheromones
+                        pheromones,
+                        teams,
+                        positionWeights,
+                        targetStrength
                     );
 
                     // Select player based on probabilities
@@ -204,34 +218,47 @@ class SlotAntColonyOptimizer extends IOptimizer {
     }
 
     /**
-     * Calculate selection probabilities for ant colony
+     * Calculate selection probabilities for ant colony.
+     * Heuristic prefers players that EQUALIZE team strength toward the target,
+     * not just strong players (which would stack all stars on one team).
+     *
      * @param {Array<number>} playerIds - Available player IDs
      * @param {number} teamIndex - Current team index
      * @param {string} position - Position being filled
      * @param {Object} playerPool - PlayerPool instance
      * @param {Map} pheromones - Pheromone matrix
+     * @param {Array<Array<{playerId, position}>>} teams - Current partial teams
+     * @param {Object} positionWeights - Position weights
+     * @param {number} targetStrength - Target strength per team
      * @returns {Array<number>} Probabilities for each player
      */
-    calculateAntProbabilities(playerIds, teamIndex, position, playerPool, pheromones) {
+    calculateAntProbabilities(playerIds, teamIndex, position, playerPool, pheromones, teams, positionWeights, targetStrength) {
         const probabilities = [];
         let totalProbability = 0;
+
+        // Current team strength
+        const currentStrength = teams[teamIndex].reduce((sum, s) => {
+            const r = playerPool.getPlayerRating(s.playerId, s.position);
+            const w = positionWeights[s.position] || 1.0;
+            return sum + r * w;
+        }, 0);
 
         playerIds.forEach(playerId => {
             const teamPheromones = pheromones.get(playerId) || Array(10).fill(1.0);
             const pheromone = teamPheromones[teamIndex] || 1.0;
 
-            // Heuristic: rating strength
+            // Heuristic: prefer players that bring team closer to target strength
             const rating = playerPool.getPlayerRating(playerId, position);
-            const heuristic = rating / 1500; // Normalize around 1.0
+            const weight = positionWeights[position] || 1.0;
+            const afterStrength = currentStrength + rating * weight;
+            const heuristic = 1 / (1 + Math.abs(afterStrength - targetStrength) / 100);
 
-            // Probability = pheromone^alpha * heuristic^beta
             const probability = Math.pow(pheromone, this.config.alpha) *
                               Math.pow(heuristic, this.config.beta);
             probabilities.push(probability);
             totalProbability += probability;
         });
 
-        // Normalize probabilities
         return probabilities.map(p =>
             totalProbability > 0 ? p / totalProbability : 1 / playerIds.length
         );

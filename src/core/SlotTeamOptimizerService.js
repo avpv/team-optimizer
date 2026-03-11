@@ -5,6 +5,7 @@ import SlotGeneticAlgorithmOptimizer from '../algorithms/SlotGeneticAlgorithmOpt
 import SlotTabuSearchOptimizer from '../algorithms/SlotTabuSearchOptimizer.js';
 import SlotSimulatedAnnealingOptimizer from '../algorithms/SlotSimulatedAnnealingOptimizer.js';
 import SlotLocalSearchOptimizer from '../algorithms/SlotLocalSearchOptimizer.js';
+import SlotAntColonyOptimizer from '../algorithms/SlotAntColonyOptimizer.js';
 
 import PlayerPool from './PlayerPool.js';
 import { generateInitialSlotSolutions } from '../utils/slotSolutionGenerators.js';
@@ -48,6 +49,7 @@ class SlotTeamOptimizerService {
             useTabuSearch: true,
             useSimulatedAnnealing: true,
             useLocalSearch: true,
+            useAntColony: true,
             adaptiveParameters: {
                 strongWeakSwapProbability: 0.6,
                 positionBalanceWeight: 0.3,
@@ -76,16 +78,26 @@ class SlotTeamOptimizerService {
                 diversificationFrequency: 1200
             },
             simulatedAnnealing: {
-                initialTemperature: 1500,
-                coolingRate: 0.9965,
+                initialTemperature: 100,
+                coolingRate: 0.99997,  // T(120000) ≈ 2.7, effective throughout
                 iterations: 120000,
                 reheatEnabled: true,
-                reheatTemperature: 700,
-                reheatIterations: 25000
+                reheatTemperature: 50,
+                reheatIterations: 30000,
+                adaptiveCooling: true  // Cool faster on stagnation
             },
             localSearch: {
                 iterations: 4000,
                 neighborhoodSize: 12
+            },
+            antColony: {
+                iterations: 50,
+                antCount: 15,
+                evaporationRate: 0.3,
+                pheromoneDeposit: 10,
+                elitistWeight: 2.0,
+                alpha: 1.0,
+                beta: 2.0
             }
         };
 
@@ -144,7 +156,7 @@ class SlotTeamOptimizerService {
 
         // Evaluate all candidates with the TRUE objective (no perturbation)
         const { evaluateSlotSolution } = await import('../utils/slotEvaluationUtils.js');
-        const scores = results.map(r => evaluateSlotSolution(r, playerPool, positionWeights));
+        const scores = results.map(r => evaluateSlotSolution(r, playerPool, positionWeights, composition));
 
         // Rank candidates by score (best first)
         const ranked = results
@@ -302,6 +314,18 @@ class SlotTeamOptimizerService {
             algorithmNames.push('Simulated Annealing');
         }
 
+        // Ant Colony Optimization (constructive, provides diversity)
+        if (this.config.useAntColony) {
+            const optimizer = new SlotAntColonyOptimizer(this.algorithmConfigs.antColony);
+            algorithmPromises.push(
+                optimizer.solve(problemContext).then(result => {
+                    stats.antColony = optimizer.getStatistics();
+                    return result;
+                })
+            );
+            algorithmNames.push('Ant Colony');
+        }
+
         // Wait for all algorithms to complete
         const results = await Promise.allSettled(algorithmPromises);
 
@@ -349,14 +373,23 @@ class SlotTeamOptimizerService {
      * @param {number} playerCount - Number of players
      */
     adaptParameters(teamCount, playerCount) {
-        // Can adjust algorithm configs based on problem size if needed
         const problemSize = teamCount * this.teamSize;
 
         if (problemSize > 100) {
-            // Increase iterations for larger problems
-            this.algorithmConfigs.tabuSearch.iterations *= 1.5;
-            this.algorithmConfigs.simulatedAnnealing.iterations *= 1.3;
+            // Return adjusted configs WITHOUT mutating originals
+            return {
+                ...this.algorithmConfigs,
+                tabuSearch: {
+                    ...this.algorithmConfigs.tabuSearch,
+                    iterations: Math.round(this.algorithmConfigs.tabuSearch.iterations * 1.5)
+                },
+                simulatedAnnealing: {
+                    ...this.algorithmConfigs.simulatedAnnealing,
+                    iterations: Math.round(this.algorithmConfigs.simulatedAnnealing.iterations * 1.3)
+                }
+            };
         }
+        return this.algorithmConfigs;
     }
 }
 
