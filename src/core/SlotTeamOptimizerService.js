@@ -162,20 +162,20 @@ class SlotTeamOptimizerService {
             return true;
         });
 
-        // Take top-N unique candidates and refine each with local search
+        // Take top-N unique candidates and refine each with local search.
+        // Each variant gets its own optimizer instance to avoid shared state.
         const topCandidates = uniqueCandidates.slice(0, variantCount);
 
-        const localSearchOptimizer = new SlotLocalSearchOptimizer(
-            this.algorithmConfigs.localSearch,
-            this.config.adaptiveParameters
-        );
-
         const refinedVariants = await Promise.all(topCandidates.map(async (candidate) => {
+            const optimizer = new SlotLocalSearchOptimizer(
+                this.algorithmConfigs.localSearch,
+                this.config.adaptiveParameters
+            );
             const localSearchContext = {
                 ...problemContext,
                 initialSolution: candidate.result
             };
-            let refined = await localSearchOptimizer.solve(localSearchContext);
+            let refined = await optimizer.solve(localSearchContext);
 
             // Final duplicate check (should never happen)
             if (hasDuplicatePlayerIds(refined)) {
@@ -186,7 +186,7 @@ class SlotTeamOptimizerService {
             const compositionValidation = validateAllSlotTeamsComposition(refined, composition);
             if (!compositionValidation.isValid) {
                 const fallbackSolution = generateInitialSlotSolutions(composition, teamCount, playerPool)[0];
-                const fallbackRefined = await localSearchOptimizer.solve({
+                const fallbackRefined = await optimizer.solve({
                     ...problemContext,
                     initialSolution: fallbackSolution
                 });
@@ -194,10 +194,10 @@ class SlotTeamOptimizerService {
                 refined = fallbackValidation.isValid ? fallbackRefined : fallbackSolution;
             }
 
-            return { refined, algorithm: candidate.algorithm };
+            return { refined, algorithm: candidate.algorithm, stats: optimizer.getStatistics() };
         }));
 
-        localStats.localSearch = localSearchOptimizer.getStatistics();
+        localStats.localSearch = refinedVariants[0]?.stats || {};
 
         // Build final results
         const { calculateTeamBalance } = await import('../utils/evaluationUtils.js');
