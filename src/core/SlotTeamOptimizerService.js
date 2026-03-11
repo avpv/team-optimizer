@@ -240,9 +240,6 @@ class SlotTeamOptimizerService {
             return true;
         });
 
-        if (variantCount <= 1) {
-            return uniqueVariants[0];
-        }
         return uniqueVariants;
     }
 
