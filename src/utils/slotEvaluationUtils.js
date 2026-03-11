@@ -117,7 +117,7 @@ function computeSaltPerturbation(teams, salt) {
         for (let i = 0; i < team.length; i++) {
             teamHash = ((teamHash ^ (team[i].playerId * 2654435761)) + teamIdx * 31 + i * 17) >>> 0;
         }
-        perturbation += (teamHash % 10000) / 100; // 0.0 to 100.0 per team — strong enough to shift local optima
+        perturbation += (teamHash % 10000) / 500; // 0.0 to 20.0 per team — small enough to preserve balance quality
     }
     return perturbation;
 }
