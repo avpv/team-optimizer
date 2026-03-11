@@ -50,7 +50,6 @@ class WarningTracker {
     }
 }
 
-// Export singleton instance for backward compatibility
 export const warningTracker = new WarningTracker();
 
 // Export class for creating custom instances
