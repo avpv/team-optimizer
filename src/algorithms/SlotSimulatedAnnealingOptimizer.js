@@ -107,9 +107,11 @@ class SlotSimulatedAnnealingOptimizer extends IOptimizer {
                     iterationSinceImprovement++;
                 }
 
-                // Adaptive cooling: cool slower when finding improvements, faster when stagnating
+                // Adaptive cooling: when we find an improvement, cool very slowly (0.99999)
+                // to keep exploring the promising region longer. When stagnating,
+                // cool at the normal rate to move toward exploitation faster.
                 if (this.config.adaptiveCooling && foundImprovement) {
-                    temp *= 0.99999;  // Slow cooling on progress
+                    temp *= 0.99999;
                 } else {
                     temp *= this.config.coolingRate;
                 }

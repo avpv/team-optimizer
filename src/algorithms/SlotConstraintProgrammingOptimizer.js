@@ -7,18 +7,22 @@ import { evaluateSlotSolution } from '../utils/slotEvaluationUtils.js';
 /**
  * Slot-Based Constraint Programming Optimizer
  *
- * Uses backtracking with constraint propagation to construct valid solutions.
- * Unlike other algorithms, CP doesn't mutate - it constructs from scratch.
+ * Uses backtracking with forward checking to construct valid, balanced solutions.
+ * Unlike other algorithms, CP doesn't mutate — it constructs from scratch.
  *
  * Key constraints:
  * 1. Each player assigned exactly once (AllDifferent)
  * 2. Each team has correct position composition
  * 3. Players only assigned to positions they can play
  *
- * Advantages with slot structure:
- * - Constraints naturally enforced (ID-based assignment)
- * - Fast constraint checking (Set operations on IDs)
- * - Domain pruning more efficient
+ * Forward checking: after each assignment, prune domains of future variables
+ * by removing the assigned player. If any future variable's domain becomes
+ * empty, backtrack immediately (fail-fast).
+ *
+ * Variable ordering: MRV (Minimum Remaining Values) — assign the variable
+ * with the smallest domain first, reducing branching factor.
+ *
+ * Value ordering: balance-aware — prefer players that equalize team strength.
  */
 class SlotConstraintProgrammingOptimizer extends IOptimizer {
     constructor(config) {
@@ -27,18 +31,13 @@ class SlotConstraintProgrammingOptimizer extends IOptimizer {
             iterations: 0,
             improvements: 0,
             backtracks: 0,
-            conflicts: 0
+            conflicts: 0,
+            pruned: 0
         };
     }
 
     /**
      * Solve using Constraint Programming
-     * @param {Object} problemContext - Problem context
-     * @param {Object} problemContext.composition - Position composition
-     * @param {number} problemContext.teamCount - Number of teams
-     * @param {Object} problemContext.playerPool - PlayerPool instance
-     * @param {Object} problemContext.positionWeights - Position weights
-     * @returns {Promise<Array<Array<{playerId, position}>>>} Best solution found
      */
     async solve(problemContext) {
         const {
@@ -49,38 +48,38 @@ class SlotConstraintProgrammingOptimizer extends IOptimizer {
         } = problemContext;
 
         try {
-            // Build constraint model
-            const variables = this.buildCPVariables(composition, teamCount, playerPool);
-
-            // Try multiple attempts with different variable orderings
-            const attempts = Math.min(3, Math.ceil(this.config.maxBacktracks / 4000));
+            const attempts = Math.min(5, Math.ceil(this.config.maxBacktracks / 3000));
             let bestSolution = null;
             let bestScore = Infinity;
 
             for (let attempt = 0; attempt < attempts; attempt++) {
-                // Shuffle variables for diversity
-                if (attempt > 0) {
-                    this.shuffleArray(variables);
+                const variables = this.buildCPVariables(composition, teamCount, playerPool);
+
+                // Sort by MRV (smallest domain first) for first attempt;
+                // add randomization for subsequent attempts
+                if (attempt === 0) {
+                    variables.sort((a, b) => a.domain.length - b.domain.length);
+                } else {
+                    // Partially randomize while keeping scarce positions early
+                    variables.sort((a, b) => {
+                        const da = a.domain.length + Math.random() * 3;
+                        const db = b.domain.length + Math.random() * 3;
+                        return da - db;
+                    });
                 }
 
-                // Reset stats for this attempt
-                const attemptStats = { backtracks: 0, conflicts: 0 };
+                const attemptStats = { backtracks: 0, conflicts: 0, pruned: 0 };
 
-                // Try to find solution using backtracking
-                const solution = await this.cpBacktrackingSearch(
-                    variables,
-                    composition,
-                    teamCount,
-                    playerPool,
-                    attemptStats
+                const solution = await this.backtrackWithFC(
+                    variables, teamCount, playerPool, positionWeights, attemptStats
                 );
 
                 this.stats.backtracks += attemptStats.backtracks;
                 this.stats.conflicts += attemptStats.conflicts;
+                this.stats.pruned += attemptStats.pruned;
 
                 if (solution) {
                     const score = evaluateSlotSolution(solution, playerPool, positionWeights, composition);
-
                     if (score < bestScore) {
                         bestSolution = solution;
                         bestScore = score;
@@ -88,11 +87,9 @@ class SlotConstraintProgrammingOptimizer extends IOptimizer {
                     }
                 }
 
-                // Yield control periodically
-                if (attempt % 10 === 0) await new Promise(resolve => setTimeout(resolve, 1));
+                if (attempt % 2 === 0) await new Promise(resolve => setTimeout(resolve, 1));
             }
 
-            // Fallback to smart construction if no solution found
             if (!bestSolution) {
                 bestSolution = createSmartSlotSolution(composition, teamCount, playerPool);
             }
@@ -104,27 +101,19 @@ class SlotConstraintProgrammingOptimizer extends IOptimizer {
     }
 
     /**
-     * Build CP variables: each position slot needs a player assignment
-     * @param {Object} composition - Position composition
-     * @param {number} teamCount - Number of teams
-     * @param {Object} playerPool - PlayerPool instance
-     * @returns {Array} Variables with domains
+     * Build CP variables with initial domains
      */
     buildCPVariables(composition, teamCount, playerPool) {
         const variables = [];
 
-        // For each team and position slot, we need to assign a player
         for (let teamIdx = 0; teamIdx < teamCount; teamIdx++) {
             Object.entries(composition).forEach(([position, count]) => {
                 for (let slot = 0; slot < count; slot++) {
                     const eligiblePlayerIds = playerPool.getPlayerIdsForPosition(position);
-
                     variables.push({
-                        id: `team${teamIdx}_${position}_${slot}`,
                         teamIndex: teamIdx,
                         position: position,
-                        slotIndex: slot,
-                        domain: [...eligiblePlayerIds], // Copy for domain pruning
+                        domain: [...eligiblePlayerIds],
                         assignment: null
                     });
                 }
@@ -135,97 +124,138 @@ class SlotConstraintProgrammingOptimizer extends IOptimizer {
     }
 
     /**
-     * Backtracking search with constraint propagation
-     * @param {Array} variables - CP variables
-     * @param {Object} composition - Position composition
-     * @param {number} teamCount - Number of teams
-     * @param {Object} playerPool - PlayerPool instance
-     * @param {Object} stats - Statistics tracker
-     * @returns {Array<Array<{playerId, position}>>|null} Solution or null
+     * Backtracking with forward checking.
+     * After each assignment, removes the assigned player from all future
+     * variables' domains. If any domain becomes empty → fail-fast.
      */
-    async cpBacktrackingSearch(variables, composition, teamCount, playerPool, stats) {
-        const usedPlayerIds = new Set();
+    async backtrackWithFC(variables, teamCount, playerPool, positionWeights, stats) {
         const teams = Array.from({ length: teamCount }, () => []);
+        const domainStack = []; // Stack of domain snapshots for undo
 
-        return await this.backtrack(0, variables, usedPlayerIds, teams, stats);
-    }
-
-    /**
-     * Recursive backtracking
-     * @param {number} varIndex - Current variable index
-     * @param {Array} variables - All variables
-     * @param {Set} usedPlayerIds - Already assigned player IDs
-     * @param {Array} teams - Current team assignments
-     * @param {Object} stats - Statistics tracker
-     * @returns {Array|null} Solution or null
-     */
-    async backtrack(varIndex, variables, usedPlayerIds, teams, stats) {
-        // Base case: all variables assigned
-        if (varIndex >= variables.length) {
-            return teams;
-        }
-
-        // Check if we exceeded backtrack limit
-        if (stats.backtracks > this.config.maxBacktracks) {
-            return null;
-        }
-
-        const variable = variables[varIndex];
-
-        // Try each value in domain
-        for (const playerId of variable.domain) {
-            // Check constraint: player not already used
-            if (usedPlayerIds.has(playerId)) {
-                stats.conflicts++;
-                continue;
+        const solve = async (varIndex) => {
+            if (varIndex >= variables.length) {
+                return true; // All assigned
+            }
+            if (stats.backtracks > this.config.maxBacktracks) {
+                return false;
             }
 
-            // Assign variable
-            variable.assignment = playerId;
-            usedPlayerIds.add(playerId);
-            teams[variable.teamIndex].push({
-                playerId: playerId,
-                position: variable.position
-            });
+            const variable = variables[varIndex];
 
-            // Recursively assign next variable
-            const result = await this.backtrack(
-                varIndex + 1,
-                variables,
-                usedPlayerIds,
-                teams,
-                stats
+            // Value ordering: sort domain by balance heuristic
+            const orderedDomain = this.orderDomainByBalance(
+                variable, teams, playerPool, positionWeights
             );
 
-            if (result !== null) {
-                return result; // Solution found
+            for (const playerId of orderedDomain) {
+                // Assign
+                variable.assignment = playerId;
+                teams[variable.teamIndex].push({
+                    playerId: playerId,
+                    position: variable.position
+                });
+
+                // Forward check: prune future domains
+                const pruneResult = this.forwardCheck(varIndex, playerId, variables);
+
+                if (pruneResult.feasible) {
+                    stats.pruned += pruneResult.pruned;
+
+                    if (await solve(varIndex + 1)) {
+                        return true;
+                    }
+                } else {
+                    stats.conflicts++;
+                }
+
+                // Undo: restore domains and assignment
+                this.undoForwardCheck(pruneResult.removedFrom, playerId, variables);
+                variable.assignment = null;
+                teams[variable.teamIndex].pop();
+                stats.backtracks++;
+
+                if (stats.backtracks % 1000 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 1));
+                }
             }
 
-            // Backtrack
-            stats.backtracks++;
-            variable.assignment = null;
-            usedPlayerIds.delete(playerId);
-            teams[variable.teamIndex].pop();
+            return false;
+        };
 
-            // Yield control occasionally during deep backtracking
-            if (stats.backtracks % 1000 === 0) {
-                await new Promise(resolve => setTimeout(resolve, 1));
-            }
-        }
-
-        // No valid assignment found for this variable
-        return null;
+        const success = await solve(0);
+        return success ? teams : null;
     }
 
     /**
-     * Shuffle array in place (for variable ordering diversity)
-     * @param {Array} array - Array to shuffle
+     * Forward checking: remove assigned playerId from all unassigned variables' domains.
+     * Returns { feasible, pruned, removedFrom } where removedFrom tracks which
+     * variables were affected (for undo).
      */
-    shuffleArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
+    forwardCheck(currentIndex, playerId, variables) {
+        const removedFrom = [];
+        let pruned = 0;
+
+        for (let i = currentIndex + 1; i < variables.length; i++) {
+            if (variables[i].assignment !== null) continue;
+
+            const domain = variables[i].domain;
+            const idx = domain.indexOf(playerId);
+            if (idx !== -1) {
+                domain.splice(idx, 1);
+                removedFrom.push(i);
+                pruned++;
+
+                // Domain wipeout → infeasible
+                if (domain.length === 0) {
+                    // Undo what we just pruned before reporting infeasible
+                    for (const vi of removedFrom) {
+                        variables[vi].domain.push(playerId);
+                    }
+                    return { feasible: false, pruned: 0, removedFrom: [] };
+                }
+            }
         }
+
+        return { feasible: true, pruned, removedFrom };
+    }
+
+    /**
+     * Undo forward checking by restoring removed values
+     */
+    undoForwardCheck(removedFrom, playerId, variables) {
+        for (const vi of removedFrom) {
+            variables[vi].domain.push(playerId);
+        }
+    }
+
+    /**
+     * Order domain values by balance heuristic: prefer players that equalize
+     * team strength toward the average.
+     */
+    orderDomainByBalance(variable, teams, playerPool, positionWeights) {
+        const teamIdx = variable.teamIndex;
+        const position = variable.position;
+        const weight = positionWeights[position] || 1.0;
+
+        // Current team strengths
+        const strengths = teams.map(team =>
+            team.reduce((sum, s) => {
+                const r = playerPool.getPlayerRating(s.playerId, s.position);
+                const w = positionWeights[s.position] || 1.0;
+                return sum + r * w;
+            }, 0)
+        );
+        const avgStrength = strengths.reduce((a, b) => a + b, 0) / teams.length;
+        const myStrength = strengths[teamIdx];
+
+        // Score each candidate: lower distance from average = better
+        return [...variable.domain].sort((a, b) => {
+            const rA = playerPool.getPlayerRating(a, position) * weight;
+            const rB = playerPool.getPlayerRating(b, position) * weight;
+            const distA = Math.abs(myStrength + rA - avgStrength);
+            const distB = Math.abs(myStrength + rB - avgStrength);
+            return distA - distB;
+        });
     }
 
     getStatistics() {

@@ -15,6 +15,7 @@
  */
 
 import { findSlotsByPosition, swapSlots } from './teamSlotUtils.js';
+import { calculateSlotTeamStrength } from './slotEvaluationUtils.js';
 
 /**
  * Perform a simple random swap between two teams at same position
@@ -180,7 +181,27 @@ export function performPositionTargetedSwap(teams, positions, playerPool, adapti
         return rating < worst.rating ? { idx, rating } : worst;
     }, { idx: -1, rating: Infinity }).idx;
 
-    if (bestSlotIdx !== -1 && worstSlotIdx !== -1) {
+    if (bestSlotIdx === -1 || worstSlotIdx === -1) return;
+
+    // Verify swap improves overall team balance (not just this position)
+    const overallStrengths = teams.map(team =>
+        calculateSlotTeamStrength(team, playerPool, positionWeights));
+    const overallAvg = overallStrengths.reduce((a, b) => a + b, 0) / teams.length;
+    const currentVariance = overallStrengths.reduce((s, v) => s + (v - overallAvg) ** 2, 0) / teams.length;
+
+    const bestR = playerPool.getPlayerRating(teams[strong.idx][bestSlotIdx].playerId, worstPosition);
+    const worstR = playerPool.getPlayerRating(teams[weak.idx][worstSlotIdx].playerId, worstPosition);
+    const delta = (bestR - worstR) * (positionWeights[worstPosition] || 1.0);
+
+    const newStrengths = overallStrengths.map((s, i) => {
+        if (i === strong.idx) return s - delta;
+        if (i === weak.idx) return s + delta;
+        return s;
+    });
+    const newAvg = newStrengths.reduce((a, b) => a + b, 0) / teams.length;
+    const newVariance = newStrengths.reduce((s, v) => s + (v - newAvg) ** 2, 0) / teams.length;
+
+    if (newVariance < currentVariance) {
         swapSlots(teams, strong.idx, bestSlotIdx, weak.idx, worstSlotIdx);
     }
 }
@@ -251,19 +272,3 @@ export function performUniversalSlotSwap(teams, positions, playerPool, adaptiveP
     }
 }
 
-/**
- * Calculate team strength from slots
- * @param {Array<{playerId, position}>} team - Slot-based team
- * @param {Object} playerPool - PlayerPool instance
- * @param {Object} positionWeights - Position weights
- * @returns {number} Team strength
- */
-function calculateSlotTeamStrength(team, playerPool, positionWeights) {
-    let totalStrength = 0;
-    team.forEach(slot => {
-        const rating = playerPool.getPlayerRating(slot.playerId, slot.position);
-        const weight = positionWeights[slot.position] || 1.0;
-        totalStrength += rating * weight;
-    });
-    return totalStrength;
-}

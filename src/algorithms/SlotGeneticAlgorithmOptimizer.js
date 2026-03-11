@@ -1,7 +1,7 @@
 // src/algorithms/SlotGeneticAlgorithmOptimizer.js
 
 import IOptimizer from '../core/IOptimizer.js';
-import { cloneSlotTeams, hashSlotSolution, validateAllSlotTeamsComposition } from '../utils/teamSlotUtils.js';
+import { cloneSlotTeams, validateAllSlotTeamsComposition } from '../utils/teamSlotUtils.js';
 import { performUniversalSlotSwap } from '../utils/slotSwapOperations.js';
 import { createRandomSlotSolution } from '../utils/slotSolutionGenerators.js';
 import { evaluateSlotSolution } from '../utils/slotEvaluationUtils.js';

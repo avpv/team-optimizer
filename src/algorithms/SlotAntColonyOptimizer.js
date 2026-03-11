@@ -236,22 +236,40 @@ class SlotAntColonyOptimizer extends IOptimizer {
         const probabilities = [];
         let totalProbability = 0;
 
-        // Current team strength
+        const weight = positionWeights[position] || 1.0;
+
+        // Current team strength (overall)
         const currentStrength = teams[teamIndex].reduce((sum, s) => {
             const r = playerPool.getPlayerRating(s.playerId, s.position);
             const w = positionWeights[s.position] || 1.0;
             return sum + r * w;
         }, 0);
 
+        // Current position-level strength for this team vs others
+        const posStrengths = teams.map(team => {
+            const slots = team.filter(s => s.position === position);
+            return slots.reduce((sum, s) =>
+                sum + playerPool.getPlayerRating(s.playerId, position), 0);
+        });
+        const avgPosStrength = posStrengths.reduce((a, b) => a + b, 0) / Math.max(1, teams.length);
+
         playerIds.forEach(playerId => {
             const teamPheromones = pheromones.get(playerId) || Array(10).fill(1.0);
             const pheromone = teamPheromones[teamIndex] || 1.0;
 
-            // Heuristic: prefer players that bring team closer to target strength
             const rating = playerPool.getPlayerRating(playerId, position);
-            const weight = positionWeights[position] || 1.0;
+
+            // Heuristic 1: overall team strength → target
             const afterStrength = currentStrength + rating * weight;
-            const heuristic = 1 / (1 + Math.abs(afterStrength - targetStrength) / 100);
+            const overallH = 1 / (1 + Math.abs(afterStrength - targetStrength) / 100);
+
+            // Heuristic 2: position-level balance — prefer players that keep
+            // this team's position strength close to the cross-team average
+            const afterPosStrength = posStrengths[teamIndex] + rating;
+            const posH = 1 / (1 + Math.abs(afterPosStrength - avgPosStrength - rating / teams.length) / 50);
+
+            // Combined: 60% overall balance + 40% position-level balance
+            const heuristic = overallH * 0.6 + posH * 0.4;
 
             const probability = Math.pow(pheromone, this.config.alpha) *
                               Math.pow(heuristic, this.config.beta);
