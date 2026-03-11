@@ -100,7 +100,7 @@ class SlotTeamOptimizerService {
      * @param {Array} players - Available players
      * @returns {Promise<Object>} Optimization result
      */
-    async optimize(composition, teamCount, players) {
+    async optimize(composition, teamCount, players, options = {}) {
         // Validate input
         const validation = this.validationService.validate(composition, teamCount, players);
         if (!validation.isValid) {
@@ -113,7 +113,10 @@ class SlotTeamOptimizerService {
         // Generate a per-run salt so each optimization produces different results.
         // The salt perturbs the evaluation function slightly, causing algorithms
         // to converge to different (but still well-balanced) local optima.
-        playerPool.salt = Date.now() ^ (Math.random() * 0x7fffffff | 0);
+        // Use variantSeed to guarantee unique salts when running variants in parallel
+        // (Date.now() alone is identical for parallel calls).
+        const variantSeed = options.variantSeed || 0;
+        playerPool.salt = (Date.now() ^ (Math.random() * 0x7fffffff | 0)) + variantSeed * 1000003;
 
         const positions = Object.keys(composition).filter(pos => composition[pos] > 0);
         const positionWeights = this.activityConfig.positionWeights;
