@@ -1,7 +1,7 @@
 // src/algorithms/SlotGeneticAlgorithmOptimizer.js
 
 import IOptimizer from '../core/IOptimizer.js';
-import { cloneSlotTeams, hashSlotSolution, validateAllSlotTeamsComposition } from '../utils/teamSlotUtils.js';
+import { cloneSlotTeams, validateAllSlotTeamsComposition } from '../utils/teamSlotUtils.js';
 import { performUniversalSlotSwap } from '../utils/slotSwapOperations.js';
 import { createRandomSlotSolution } from '../utils/slotSolutionGenerators.js';
 import { evaluateSlotSolution } from '../utils/slotEvaluationUtils.js';
@@ -66,7 +66,7 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
                 // Evaluate all individuals
                 const scored = population.map(individual => ({
                     teams: individual,
-                    score: evaluateSlotSolution(individual, playerPool, positionWeights)
+                    score: evaluateSlotSolution(individual, playerPool, positionWeights, composition)
                 })).sort((a, b) => a.score - b.score);
 
                 // Track improvements
@@ -221,12 +221,8 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
     }
 
     /**
-     * Slot-based crossover operation
-     *
-     * Much simpler than old version because:
-     * - No need to check for duplicates (impossible by structure)
-     * - Just swap player IDs, not entire objects
-     * - All players guaranteed to be used exactly once
+     * Position-level crossover: for each position, inherit from one parent.
+     * This preserves valid composition by construction — no fallback needed.
      *
      * @param {Array<Array<{playerId, position}>>} parent1 - First parent
      * @param {Array<Array<{playerId, position}>>} parent2 - Second parent
@@ -238,97 +234,77 @@ class SlotGeneticAlgorithmOptimizer extends IOptimizer {
         const child = Array.from({ length: parent1.length }, () => []);
         const usedIds = new Set();
 
-        // Determine crossover point
-        const slicePoint = Math.floor(Math.random() * parent1.length);
+        // For each position: take from one parent
+        for (const [position, count] of Object.entries(composition)) {
+            if (!count) continue;
+            const source = Math.random() < 0.5 ? parent1 : parent2;
 
-        // Copy first part from parent1
-        for (let i = 0; i < slicePoint; i++) {
-            child[i] = parent1[i].map(slot => ({
-                playerId: slot.playerId,
-                position: slot.position
-            }));
-            parent1[i].forEach(slot => usedIds.add(slot.playerId));
+            for (let teamIdx = 0; teamIdx < source.length; teamIdx++) {
+                const slots = source[teamIdx].filter(s => s.position === position);
+                for (const slot of slots) {
+                    if (!usedIds.has(slot.playerId) &&
+                        child[teamIdx].filter(s => s.position === position).length < count) {
+                        child[teamIdx].push({ playerId: slot.playerId, position });
+                        usedIds.add(slot.playerId);
+                    }
+                }
+            }
         }
 
-        // Fill remaining with players from parent2
-        // Key advantage: No duplicate checking needed!
-        const remainingSlots = parent2.flat().filter(slot => !usedIds.has(slot.playerId));
-
-        // Sort remaining: specialists first (fewer positions = higher priority)
-        // This ensures single-position players get placed before multi-position ones,
-        // leaving multi-position players flexible to fill remaining slots
-        remainingSlots.sort((a, b) => {
-            const playerA = playerPool.getPlayer(a.playerId);
-            const playerB = playerPool.getPlayer(b.playerId);
-            const posCountA = playerA ? playerA.positions.length : 1;
-            const posCountB = playerB ? playerB.positions.length : 1;
-            return posCountA - posCountB;
-        });
-
-        remainingSlots.forEach(slot => {
-            let placed = false;
-
-            // Try to place in team that needs this position (from parent2)
-            for (let i = slicePoint; i < child.length; i++) {
-                const currentCount = child[i].filter(s => s.position === slot.position).length;
-                const neededCount = composition[slot.position] || 0;
-
-                if (currentCount < neededCount) {
-                    child[i].push({
-                        playerId: slot.playerId,
-                        position: slot.position
-                    });
-                    placed = true;
-                    break;
-                }
-            }
-
-            // If original position is full, try alternative positions the player can play
-            if (!placed) {
-                const player = playerPool.getPlayer(slot.playerId);
-                if (player && player.positions) {
-                    for (const altPosition of player.positions) {
-                        if (altPosition === slot.position) continue; // Already tried
-                        const neededCount = composition[altPosition] || 0;
-                        if (neededCount === 0) continue;
-
-                        for (let i = slicePoint; i < child.length; i++) {
-                            const currentCount = child[i].filter(s => s.position === altPosition).length;
-                            if (currentCount < neededCount) {
-                                child[i].push({
-                                    playerId: slot.playerId,
-                                    position: altPosition
-                                });
-                                placed = true;
-                                break;
-                            }
-                        }
-                        if (placed) break;
-                    }
-                }
-            }
-
-            // Last resort: add to smallest team that still needs players
-            if (!placed) {
-                const teamSize = Object.values(composition).reduce((sum, c) => sum + c, 0);
-                let smallestTeam = null;
-                let smallestSize = Infinity;
-                for (let i = slicePoint; i < child.length; i++) {
-                    if (child[i].length < teamSize && child[i].length < smallestSize) {
-                        smallestSize = child[i].length;
-                        smallestTeam = child[i];
-                    }
-                }
-                if (smallestTeam) {
-                    smallestTeam.push({
-                        playerId: slot.playerId,
-                        position: slot.position
-                    });
-                }
-            }
-        });
+        // Fill missing slots from the other parent or pool
+        this._fillMissingSlots(child, composition, playerPool, usedIds);
 
         return child;
+    }
+
+    /**
+     * Fill any missing slots in the child solution.
+     * Tries to find unused players that can fill needed positions.
+     */
+    _fillMissingSlots(child, composition, playerPool, usedIds) {
+        // Collect all unused player IDs, specialists first
+        const allPlayers = playerPool.getAllPlayers();
+        const unusedPlayers = allPlayers
+            .filter(p => !usedIds.has(p.id))
+            .sort((a, b) => (a.positions?.length || 1) - (b.positions?.length || 1));
+
+        for (const player of unusedPlayers) {
+            if (!player.positions) continue;
+            let placed = false;
+
+            for (const position of player.positions) {
+                const neededCount = composition[position] || 0;
+                if (neededCount === 0) continue;
+
+                for (let i = 0; i < child.length; i++) {
+                    const currentCount = child[i].filter(s => s.position === position).length;
+                    if (currentCount < neededCount) {
+                        child[i].push({ playerId: player.id, position });
+                        usedIds.add(player.id);
+                        placed = true;
+                        break;
+                    }
+                }
+                if (placed) break;
+            }
+
+            // Last resort: add to smallest team
+            if (!placed) {
+                const teamSize = Object.values(composition).reduce((sum, c) => sum + c, 0);
+                let smallestIdx = -1;
+                let smallestSize = Infinity;
+                for (let i = 0; i < child.length; i++) {
+                    if (child[i].length < teamSize && child[i].length < smallestSize) {
+                        smallestSize = child[i].length;
+                        smallestIdx = i;
+                    }
+                }
+                if (smallestIdx >= 0) {
+                    child[smallestIdx].push({ playerId: player.id, position: player.positions[0] });
+                    usedIds.add(player.id);
+                }
+            }
+        }
     }
 
     getStatistics() {

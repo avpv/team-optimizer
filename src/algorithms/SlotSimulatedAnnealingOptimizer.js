@@ -55,7 +55,7 @@ class SlotSimulatedAnnealingOptimizer extends IOptimizer {
         try {
             let current = cloneSlotTeams(initialSolution);
             let best = cloneSlotTeams(current);
-            let currentScore = evaluateSlotSolution(current, playerPool, positionWeights);
+            let currentScore = evaluateSlotSolution(current, playerPool, positionWeights, composition);
             let bestScore = currentScore;
             let temp = this.config.initialTemperature;
             let iterationSinceImprovement = 0;
@@ -81,7 +81,7 @@ class SlotSimulatedAnnealingOptimizer extends IOptimizer {
                     performUniversalSlotSwap(neighbor, positions, playerPool, this.adaptiveParams);
                 }
 
-                const neighborScore = evaluateSlotSolution(neighbor, playerPool, positionWeights);
+                const neighborScore = evaluateSlotSolution(neighbor, playerPool, positionWeights, composition);
                 const delta = neighborScore - currentScore;
 
                 // Track if we found an improvement
@@ -107,8 +107,14 @@ class SlotSimulatedAnnealingOptimizer extends IOptimizer {
                     iterationSinceImprovement++;
                 }
 
-                // Cool down temperature
-                temp *= this.config.coolingRate;
+                // Adaptive cooling: when we find an improvement, cool very slowly (0.99999)
+                // to keep exploring the promising region longer. When stagnating,
+                // cool at the normal rate to move toward exploitation faster.
+                if (this.config.adaptiveCooling && foundImprovement) {
+                    temp *= 0.99999;
+                } else {
+                    temp *= this.config.coolingRate;
+                }
 
                 // Reheat if enabled and stagnating
                 if (this.config.reheatEnabled && iterationSinceImprovement > this.config.reheatIterations) {

@@ -81,7 +81,7 @@ class SlotHybridOptimizer extends IOptimizer {
             }
 
             let bestSolution = cloneSlotTeams(currentSolution);
-            let bestScore = evaluateSlotSolution(bestSolution, playerPool, positionWeights);
+            let bestScore = evaluateSlotSolution(bestSolution, playerPool, positionWeights, composition);
 
             // Phase 1: Genetic Algorithm - Global Exploration
             const phase1Result = await this.phase1GeneticAlgorithm(
@@ -160,7 +160,7 @@ class SlotHybridOptimizer extends IOptimizer {
             // Evaluate population
             const scored = population.map(individual => ({
                 teams: individual,
-                score: evaluateSlotSolution(individual, playerPool, positionWeights)
+                score: evaluateSlotSolution(individual, playerPool, positionWeights, composition)
             })).sort((a, b) => a.score - b.score);
 
             // Track best
@@ -235,51 +235,56 @@ class SlotHybridOptimizer extends IOptimizer {
             this.stats.phase2Iterations++;
 
             // Generate neighborhood using adaptive swaps
-            const neighbors = [];
+            // Track both non-tabu and tabu neighbors for aspiration criterion
+            let bestNonTabu = null;
+            let bestTabuAspiration = null;
+
             for (let n = 0; n < config.neighborhoodSize; n++) {
                 const neighbor = cloneSlotTeams(currentSolution);
-
-                // Use adaptive swaps for exploitation
                 performAdaptiveSlotSwap(neighbor, positions, playerPool, this.adaptiveParams);
 
                 const hash = hashSlotSolution(neighbor);
-                if (!tabuList.has(hash)) {
-                    neighbors.push({
-                        solution: neighbor,
-                        score: evaluateSlotSolution(neighbor, playerPool, positionWeights),
-                        hash
-                    });
+                const score = evaluateSlotSolution(neighbor, playerPool, positionWeights, composition);
+                const isTabu = tabuList.has(hash);
+
+                if (!isTabu) {
+                    if (!bestNonTabu || score < bestNonTabu.score) {
+                        bestNonTabu = { solution: neighbor, score, hash };
+                    }
+                } else if (score < bestScore) {
+                    // Aspiration: accept tabu move if it beats global best
+                    if (!bestTabuAspiration || score < bestTabuAspiration.score) {
+                        bestTabuAspiration = { solution: neighbor, score, hash };
+                    }
                 }
             }
 
-            if (neighbors.length === 0) continue;
+            // Pick aspiration if better than best non-tabu, otherwise best non-tabu
+            const bestNeighbor = (bestTabuAspiration && (!bestNonTabu || bestTabuAspiration.score < bestNonTabu.score))
+                ? bestTabuAspiration
+                : bestNonTabu;
 
-            // Sort by score
-            neighbors.sort((a, b) => a.score - b.score);
-            const bestNeighbor = neighbors[0];
+            if (!bestNeighbor) continue;
 
-            // Accept best non-tabu neighbor (or aspiration criterion)
-            if (bestNeighbor.score < bestScore || !tabuList.has(bestNeighbor.hash)) {
-                currentSolution = bestNeighbor.solution;
-                currentScore = bestNeighbor.score;
+            currentSolution = bestNeighbor.solution;
+            currentScore = bestNeighbor.score;
 
-                // Add to tabu list
-                tabuList.add(bestNeighbor.hash);
-                if (tabuList.size > config.tabuTenure) {
-                    const firstItem = tabuList.values().next().value;
-                    tabuList.delete(firstItem);
-                }
+            // Add to tabu list
+            tabuList.add(bestNeighbor.hash);
+            if (tabuList.size > config.tabuTenure) {
+                const firstItem = tabuList.values().next().value;
+                tabuList.delete(firstItem);
+            }
 
-                // Update best
-                if (currentScore < bestScore) {
-                    bestSolution = cloneSlotTeams(currentSolution);
-                    bestScore = currentScore;
-                    this.stats.phase2Improvements++;
-                    this.stats.totalImprovements++;
-                    iterationsSinceImprovement = 0;
-                } else {
-                    iterationsSinceImprovement++;
-                }
+            // Update best
+            if (currentScore < bestScore) {
+                bestSolution = cloneSlotTeams(currentSolution);
+                bestScore = currentScore;
+                this.stats.phase2Improvements++;
+                this.stats.totalImprovements++;
+                iterationsSinceImprovement = 0;
+            } else {
+                iterationsSinceImprovement++;
             }
 
             // Diversification if stuck
@@ -287,7 +292,7 @@ class SlotHybridOptimizer extends IOptimizer {
                 for (let i = 0; i < 5; i++) {
                     performUniversalSlotSwap(currentSolution, positions, playerPool, this.adaptiveParams);
                 }
-                currentScore = evaluateSlotSolution(currentSolution, playerPool, positionWeights);
+                currentScore = evaluateSlotSolution(currentSolution, playerPool, positionWeights, composition);
                 iterationsSinceImprovement = 0;
                 tabuList.clear();
             }
@@ -326,7 +331,7 @@ class SlotHybridOptimizer extends IOptimizer {
                 // Very focused adaptive swaps for final polishing
                 performAdaptiveSlotSwap(neighbor, positions, playerPool, this.adaptiveParams);
 
-                const neighborScore = evaluateSlotSolution(neighbor, playerPool, positionWeights);
+                const neighborScore = evaluateSlotSolution(neighbor, playerPool, positionWeights, composition);
 
                 if (neighborScore < currentScore) {
                     currentSolution = neighbor;
