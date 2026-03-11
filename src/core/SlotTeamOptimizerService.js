@@ -101,6 +101,8 @@ class SlotTeamOptimizerService {
      * @returns {Promise<Object>} Optimization result
      */
     async optimize(composition, teamCount, players, options = {}) {
+        const variantCount = options.variantCount || 1;
+
         // Validate input
         const validation = this.validationService.validate(composition, teamCount, players);
         if (!validation.isValid) {
@@ -109,14 +111,6 @@ class SlotTeamOptimizerService {
 
         // Create PlayerPool - single source of truth
         const playerPool = new PlayerPool(players);
-
-        // Generate a per-run salt so each optimization produces different results.
-        // The salt perturbs the evaluation function slightly, causing algorithms
-        // to converge to different (but still well-balanced) local optima.
-        // Use variantSeed to guarantee unique salts when running variants in parallel
-        // (Date.now() alone is identical for parallel calls).
-        const variantSeed = options.variantSeed || 0;
-        playerPool.salt = (Date.now() ^ (Math.random() * 0x7fffffff | 0)) + variantSeed * 1000003;
 
         const positions = Object.keys(composition).filter(pos => composition[pos] > 0);
         const positionWeights = this.activityConfig.positionWeights;
@@ -130,8 +124,6 @@ class SlotTeamOptimizerService {
             }
         });
 
-        // Use local stats object to avoid shared state issues when
-        // multiple optimize() calls run in parallel on the same instance
         const localStats = {};
 
         // Create problem context for all optimizers
@@ -143,75 +135,104 @@ class SlotTeamOptimizerService {
             positionWeights
         };
 
-        // Run algorithms in parallel
+        // Run algorithms in parallel — collect ALL candidate solutions
         const { results, algorithmNames, stats: algorithmRunStats } = await this.runOptimizationAlgorithms(
             initialSolutions,
             problemContext
         );
         Object.assign(localStats, algorithmRunStats);
 
-        // Select best result
+        // Evaluate all candidates with the TRUE objective (no perturbation)
         const { evaluateSlotSolution } = await import('../utils/slotEvaluationUtils.js');
         const scores = results.map(r => evaluateSlotSolution(r, playerPool, positionWeights));
-        const bestIdx = scores.indexOf(Math.min(...scores));
 
-        // Log algorithm performance
-        algorithmNames.forEach((name, idx) => {
-            const marker = idx === bestIdx ? '🏆' : '  ';
+        // Rank candidates by score (best first)
+        const ranked = results
+            .map((result, idx) => ({ result, score: scores[idx], algorithm: algorithmNames[idx] }))
+            .sort((a, b) => a.score - b.score);
+
+        // Deduplicate: keep only candidates with unique team compositions
+        const seen = new Set();
+        const uniqueCandidates = ranked.filter(({ result }) => {
+            const key = result.map(team =>
+                team.map(s => s.playerId).sort().join(',')
+            ).sort().join('|');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
         });
 
-        // Refine with local search
-        const localSearchContext = {
-            ...problemContext,
-            initialSolution: results[bestIdx]
-        };
+        // Take top-N unique candidates and refine each with local search
+        const topCandidates = uniqueCandidates.slice(0, variantCount);
+
         const localSearchOptimizer = new SlotLocalSearchOptimizer(
             this.algorithmConfigs.localSearch,
             this.config.adaptiveParameters
         );
-        let bestSlotTeams = await localSearchOptimizer.solve(localSearchContext);
+
+        const refinedVariants = await Promise.all(topCandidates.map(async (candidate) => {
+            const localSearchContext = {
+                ...problemContext,
+                initialSolution: candidate.result
+            };
+            let refined = await localSearchOptimizer.solve(localSearchContext);
+
+            // Final duplicate check (should never happen)
+            if (hasDuplicatePlayerIds(refined)) {
+                refined = candidate.result;
+            }
+
+            // Validate composition
+            const compositionValidation = validateAllSlotTeamsComposition(refined, composition);
+            if (!compositionValidation.isValid) {
+                const fallbackSolution = generateInitialSlotSolutions(composition, teamCount, playerPool)[0];
+                const fallbackRefined = await localSearchOptimizer.solve({
+                    ...problemContext,
+                    initialSolution: fallbackSolution
+                });
+                const fallbackValidation = validateAllSlotTeamsComposition(fallbackRefined, composition);
+                refined = fallbackValidation.isValid ? fallbackRefined : fallbackSolution;
+            }
+
+            return { refined, algorithm: candidate.algorithm };
+        }));
+
         localStats.localSearch = localSearchOptimizer.getStatistics();
 
-        // Final duplicate check (should never happen)
-        if (hasDuplicatePlayerIds(bestSlotTeams)) {
-        } else {
-        }
-
-        // Validate composition of final solution
-        const compositionValidation = validateAllSlotTeamsComposition(bestSlotTeams, composition);
-        if (!compositionValidation.isValid) {
-            // Composition violated - regenerate a valid solution from scratch
-            const fallbackSolution = generateInitialSlotSolutions(composition, teamCount, playerPool)[0];
-            const fallbackRefined = await localSearchOptimizer.solve({
-                ...problemContext,
-                initialSolution: fallbackSolution
-            });
-            const fallbackValidation = validateAllSlotTeamsComposition(fallbackRefined, composition);
-            if (fallbackValidation.isValid) {
-                bestSlotTeams = fallbackRefined;
-            } else {
-                // Use initial smart solution as safe fallback
-                bestSlotTeams = fallbackSolution;
-            }
-        }
-
-        // Resolve slots back to full player objects for output
-        const resolvedTeams = playerPool.resolveTeams(bestSlotTeams);
-
-        // Organize final solution
-        const { teams, unusedPlayers } = this.solutionOrganizer.prepareFinalSolution(resolvedTeams, players);
-
+        // Build final results
         const { calculateTeamBalance } = await import('../utils/evaluationUtils.js');
-        const balance = calculateTeamBalance(teams, this.activityConfig.positionWeights);
 
-        return {
-            teams,
-            balance,
-            unusedPlayers,
-            validation,
-            algorithm: `${algorithmNames[bestIdx]} + Local Search (Slot-Based)`,
-            statistics: localStats
-        };
+        const variants = refinedVariants.map(({ refined, algorithm }) => {
+            const resolvedTeams = playerPool.resolveTeams(refined);
+            const { teams, unusedPlayers } = this.solutionOrganizer.prepareFinalSolution(resolvedTeams, players);
+            const balance = calculateTeamBalance(teams, this.activityConfig.positionWeights);
+
+            return {
+                teams,
+                balance,
+                unusedPlayers,
+                validation,
+                algorithm: `${algorithm} + Local Search (Slot-Based)`,
+                statistics: localStats
+            };
+        });
+
+        // Deduplicate refined variants (local search may converge to same result)
+        const seenFinal = new Set();
+        const uniqueVariants = variants.filter(variant => {
+            const key = variant.teams.map(team =>
+                team.map(p => p.name).sort().join(',')
+            ).sort().join('|');
+            if (seenFinal.has(key)) return false;
+            seenFinal.add(key);
+            return true;
+        });
+
+        // Return single result for backward compatibility, or array of variants
+        if (variantCount <= 1) {
+            return uniqueVariants[0];
+        }
+        return uniqueVariants;
     }
 
     /**
@@ -245,10 +266,9 @@ class SlotTeamOptimizerService {
             algorithmNames.push('Genetic Algorithm');
         }
 
-        // Tabu Search (Multi-Start)
+        // Tabu Search (Multi-Start) — each start returns a separate candidate
         if (this.config.useTabuSearch) {
             const startCount = Math.min(3, initialSolutions.length);
-            const tabuResults = [];
 
             for (let i = 0; i < startCount; i++) {
                 const optimizer = new SlotTabuSearchOptimizer(
@@ -256,24 +276,14 @@ class SlotTeamOptimizerService {
                     this.config.adaptiveParameters
                 );
                 const context = { ...problemContext, initialSolution: getRandomInitialSolution() };
-                tabuResults.push(optimizer.solve(context));
+                algorithmPromises.push(
+                    optimizer.solve(context).then(result => {
+                        stats[`tabuSearch_${i}`] = optimizer.getStatistics();
+                        return result;
+                    })
+                );
+                algorithmNames.push(`Tabu Search #${i + 1}`);
             }
-
-            algorithmPromises.push(
-                Promise.all(tabuResults).then(async results => {
-                    const { evaluateSlotSolution } = await import('../utils/slotEvaluationUtils.js');
-                    const scores = results.map(r =>
-                        evaluateSlotSolution(r, problemContext.playerPool, problemContext.positionWeights)
-                    );
-                    const bestIdx = scores.indexOf(Math.min(...scores));
-                    stats.tabuSearch = {
-                        iterations: startCount * this.algorithmConfigs.tabuSearch.iterations,
-                        improvements: 0
-                    };
-                    return results[bestIdx];
-                })
-            );
-            algorithmNames.push('Tabu Search');
         }
 
         // Simulated Annealing
